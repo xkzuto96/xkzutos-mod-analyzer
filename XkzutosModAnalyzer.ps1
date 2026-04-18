@@ -8,6 +8,7 @@ param(
     [switch]$NoModVerification,
     [switch]$NoMegabase,
     [switch]$RevealHidden,
+    [switch]$NoStatusLists,
     [switch]$ShowStatusLists,
     [switch]$Quiet
 )
@@ -17,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.2"
+    Version = "2.0.3"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -220,12 +221,50 @@ function Complete-XmaProgress {
     Write-Progress -Id $Id -Activity $Activity -Completed
 }
 
+function Write-XmaRule {
+    param([string]$Color = "DarkGray")
+    if ($Quiet) { return }
+    Write-Host ("=" * 70) -ForegroundColor $Color
+}
+
+function Write-XmaSection {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Title,
+        [string]$Color = "Cyan"
+    )
+
+    if ($Quiet) { return }
+    Write-Host ""
+    Write-Host ("[ " + $Title + " ]") -ForegroundColor $Color
+}
+
+function Write-XmaSummaryLine {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Label,
+        [Parameter(Mandatory)]
+        [int]$Count,
+        [Parameter(Mandatory)]
+        [int]$Total,
+        [Parameter(Mandatory)]
+        [string]$Color
+    )
+
+    $safeTotal = if ($Total -le 0) { 1 } else { $Total }
+    $pct = [math]::Round(($Count / [double]$safeTotal) * 100, 1)
+    $line = "{0,-18} {1,4}/{2,-4} ({3,5}%)" -f ($Label + ":"), $Count, $Total, $pct
+    Write-Host $line -ForegroundColor $Color
+}
+
 function Write-XmaBanner {
     if ($Quiet) { return }
     Write-Host ""
+    Write-XmaRule -Color DarkCyan
     Write-Host "$($script:Config.Name) v$($script:Config.Version)" -ForegroundColor Cyan
     Write-Host "Built by $($script:Config.Creator)" -ForegroundColor White
     Write-Host "Credits: $((@($script:Config.Credits | ForEach-Object { $_.Project + ' / ' + $_.Name }) -join '; '))" -ForegroundColor DarkGray
+    Write-XmaRule -Color DarkCyan
     Write-Host ""
 }
 
@@ -658,6 +697,31 @@ function Get-XmaJavaProcesses {
     return @($rows)
 }
 
+function Get-XmaLikelyMinecraftJavaTargets {
+    param(
+        [object[]]$JavaProcesses,
+        [switch]$AllowJavaExeFallback
+    )
+
+    $pattern = "(?i)minecraft|fabric|forge|modrinth|prism|multimc|lunar|feather|badlion|\\.minecraft|--gamedir|--assetsdir|--versiontype"
+    $targets = @(
+        $JavaProcesses | Where-Object {
+            ([string]$_.CommandLine) -match $pattern -or
+            ([string]$_.ExecutablePath) -match $pattern
+        }
+    )
+
+    if ($targets.Count -eq 0) {
+        $targets = @($JavaProcesses | Where-Object { $_.Name -ieq "javaw.exe" })
+    }
+
+    if ($targets.Count -eq 0 -and $AllowJavaExeFallback) {
+        $targets = @($JavaProcesses | Where-Object { $_.Name -ieq "java.exe" })
+    }
+
+    return @($targets | Sort-Object ProcessId -Unique)
+}
+
 function Measure-XmaRuntimeInjection {
     param(
         [object[]]$JavaProcesses,
@@ -932,7 +996,7 @@ function Write-XmaStatusList {
     }
 
     foreach ($row in $rows) {
-        Write-Host "  - $($row.FileName)" -ForegroundColor White
+        Write-Host "  - $($row.FileName)" -ForegroundColor $Color
     }
     Write-Host ""
 }
@@ -953,8 +1017,9 @@ if ($target.PSIsContainer) {
 }
 
 if (-not $Quiet) {
-    Write-Host "Target: $($target.FullName)" -ForegroundColor Gray
-    Write-Host "Jar files found: $(@($jarFiles).Count)" -ForegroundColor Cyan
+    Write-XmaSection -Title "Scan Target" -Color Cyan
+    Write-Host "Path: $($target.FullName)" -ForegroundColor Gray
+    Write-Host "Jar files: $(@($jarFiles).Count)" -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -962,6 +1027,7 @@ $hiddenReport = @()
 if ($target.PSIsContainer) {
     $hiddenReport = @(Get-XmaHiddenJarReport -FolderPath $target.FullName -ShowProgress:(-not $Quiet))
     if (-not $Quiet) {
+        Write-XmaSection -Title "Hidden/System Attribute Check" -Color Yellow
         if (@($hiddenReport).Count -gt 0) {
             $label = if ($RevealHidden) { "Hidden/system jars found and revealed" } else { "Hidden/system jars found" }
             Write-Host "${label}: $(@($hiddenReport).Count)" -ForegroundColor Yellow
@@ -995,6 +1061,7 @@ if (-not $Quiet) {
 }
 
 $javaProcesses = @()
+$runtimeTargets = @()
 $runtimeFindings = @()
 $memoryResults = @()
 
@@ -1003,20 +1070,20 @@ if (-not $SkipRuntimeScan -or -not $SkipMemoryScan) {
 }
 
 if (-not $SkipRuntimeScan) {
-    $runtimeFindings = @(Measure-XmaRuntimeInjection -JavaProcesses $javaProcesses -ShowProgress:(-not $Quiet))
+    $runtimeTargets = @(Get-XmaLikelyMinecraftJavaTargets -JavaProcesses $javaProcesses -AllowJavaExeFallback)
+    if (-not $Quiet) {
+        Write-XmaSection -Title "JVM Runtime Scan" -Color DarkYellow
+        Write-Host "Java processes detected: $(@($javaProcesses).Count)" -ForegroundColor Gray
+        Write-Host "Runtime targets: $(@($runtimeTargets).Count)" -ForegroundColor Gray
+    }
+    $runtimeFindings = @(Measure-XmaRuntimeInjection -JavaProcesses $runtimeTargets -ShowProgress:(-not $Quiet))
 }
 
 if (-not $SkipMemoryScan) {
-    $memoryTargets = @(
-        $javaProcesses | Where-Object {
-            $_.Name -ieq "javaw.exe" -and $_.CommandLine -match "(?i)minecraft|fabric|forge|modrinth|prism|lunar|feather"
-        }
-    )
-    if ($memoryTargets.Count -eq 0) {
-        $memoryTargets = @($javaProcesses | Where-Object { $_.Name -ieq "javaw.exe" })
-    }
-    if ($memoryTargets.Count -eq 0) {
-        $memoryTargets = @($javaProcesses)
+    $memoryTargets = @(Get-XmaLikelyMinecraftJavaTargets -JavaProcesses $javaProcesses)
+    if (-not $Quiet) {
+        Write-XmaSection -Title "Memory Strings Scan" -Color DarkYellow
+        Write-Host "Memory targets: $(@($memoryTargets).Count)" -ForegroundColor Gray
     }
 
     $memoryTargetTotal = @($memoryTargets).Count
@@ -1037,17 +1104,18 @@ if (-not $SkipMemoryScan) {
 
 $reportArray = @($reports.ToArray())
 $summary = Get-XmaSummaryBucket -Reports $reportArray
+$totalMods = @($reportArray).Count
 
-Write-Host "Summary" -ForegroundColor Cyan
-Write-Host "Verified: $($summary['Verified'])" -ForegroundColor Green
-Write-Host "Unknown: $($summary['Unknown'])" -ForegroundColor Yellow
-Write-Host "Review: $($summary['Review'])" -ForegroundColor Yellow
-Write-Host "Review (Verified): $($summary['Review (Verified)'])" -ForegroundColor DarkYellow
-Write-Host "Suspicious: $($summary['Suspicious'])" -ForegroundColor Red
+Write-XmaSection -Title "Summary" -Color Cyan
+Write-XmaSummaryLine -Label "Verified" -Count $summary['Verified'] -Total $totalMods -Color Green
+Write-XmaSummaryLine -Label "Unknown" -Count $summary['Unknown'] -Total $totalMods -Color Yellow
+Write-XmaSummaryLine -Label "Review" -Count $summary['Review'] -Total $totalMods -Color DarkYellow
+Write-XmaSummaryLine -Label "Review (Verified)" -Count $summary['Review (Verified)'] -Total $totalMods -Color DarkYellow
+Write-XmaSummaryLine -Label "Suspicious" -Count $summary['Suspicious'] -Total $totalMods -Color Red
 Write-Host ""
 
-if ($ShowStatusLists) {
-    Write-Host "Status lists" -ForegroundColor Cyan
+if (-not $NoStatusLists -or $ShowStatusLists) {
+    Write-XmaSection -Title "Status Lists" -Color Cyan
     Write-XmaStatusList -Label "Verified" -Color Green -Items @($reportArray | Where-Object { $_.Status -eq "Verified" })
     Write-XmaStatusList -Label "Unknown" -Color Yellow -Items @($reportArray | Where-Object { $_.Status -eq "Unknown" })
     Write-XmaStatusList -Label "Review" -Color DarkYellow -Items @($reportArray | Where-Object { $_.Status -eq "Review" })
@@ -1057,7 +1125,7 @@ if ($ShowStatusLists) {
 
 $flagged = @($reportArray | Where-Object { $_.Status -ne "Verified" -and $_.Status -ne "Unknown" })
 if ($flagged.Count -gt 0) {
-    Write-Host "Flagged mods (with reasons)" -ForegroundColor Magenta
+    Write-XmaSection -Title "Flagged Mods (Reasons)" -Color Magenta
     foreach ($r in $flagged) {
         Write-Host ""
         Write-Host "$($r.FileName) [$($r.Status)]" -ForegroundColor White
@@ -1077,7 +1145,7 @@ if ($flagged.Count -gt 0) {
 }
 
 if (@($runtimeFindings).Count -gt 0) {
-    Write-Host "JVM runtime injection findings" -ForegroundColor Red
+    Write-XmaSection -Title "JVM Runtime Injection Findings" -Color Red
     foreach ($rf in $runtimeFindings) {
         Write-Host ""
         Write-Host "PID $($rf.ProcessId) ($($rf.Name))" -ForegroundColor White
@@ -1087,14 +1155,15 @@ if (@($runtimeFindings).Count -gt 0) {
     }
     Write-Host ""
 } elseif (-not $SkipRuntimeScan) {
-    Write-Host "JVM runtime injection findings: none" -ForegroundColor Green
+    Write-XmaSection -Title "JVM Runtime Injection Findings" -Color Green
+    Write-Host "none" -ForegroundColor Green
     Write-Host ""
 }
 
 if (-not $SkipMemoryScan) {
     $allMemoryHits = @($memoryResults | ForEach-Object { @($_.Hits) })
     if ($allMemoryHits.Count -gt 0) {
-        Write-Host "javaw/java memory string hits" -ForegroundColor Red
+        Write-XmaSection -Title "Java Memory String Hits" -Color Red
         foreach ($res in $memoryResults) {
             $proc = $javaProcesses | Where-Object { $_.ProcessId -eq $res.ProcessId } | Select-Object -First 1
             $procName = if ($proc) { "$($proc.Name) PID $($res.ProcessId)" } else { "PID $($res.ProcessId)" }
@@ -1124,7 +1193,8 @@ if (-not $SkipMemoryScan) {
         }
         Write-Host ""
     } else {
-        Write-Host "javaw/java memory string hits: none" -ForegroundColor Green
+        Write-XmaSection -Title "Java Memory String Hits" -Color Green
+        Write-Host "none" -ForegroundColor Green
         Write-Host ""
     }
 }

@@ -79,7 +79,13 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path
 Print full per-status mod lists:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -ShowStatusLists
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods"
+```
+
+Hide status lists (compact output):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -NoStatusLists
 ```
 
 ## What It Flags
@@ -89,7 +95,7 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path
 - Obfuscation markers:
   - `a.class`, `b.class`, high counts of single-letter class names
 - Hidden/system jar attributes in the target mods folder
-- JVM runtime injection argument patterns in `javaw.exe`/`java.exe`
+- JVM runtime injection argument patterns (prioritizes likely Minecraft java processes)
 - Java memory string hits for known cheat identifiers (Mapped + Private memory scan with minimum string length 5)
 - Mod hash verification via Modrinth and Megabase
 
