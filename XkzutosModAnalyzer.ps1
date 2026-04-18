@@ -1,7 +1,6 @@
 [CmdletBinding()]
 param(
     [string]$Path,
-    [switch]$Gui,
     [switch]$RuntimeScan,
     [switch]$MemoryScan,
     [ValidateRange(16, 512)]
@@ -94,8 +93,6 @@ $script:XmaConfig = @{
 }
 
 $script:XmaMemoryApiLoaded = $false
-$script:XmaGuiLastScan = $null
-
 function New-XmaFinding {
     param(
         [Parameter(Mandatory)]
@@ -1024,376 +1021,27 @@ function Export-XmaResults {
     $rows | Export-Csv -NoTypeInformation -LiteralPath $resolvedDestination -Encoding UTF8
 }
 
-function Start-XmaGui {
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-    [System.Windows.Forms.Application]::EnableVisualStyles()
-
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = "$($script:XmaConfig.Name) v$($script:XmaConfig.Version)"
-    $form.StartPosition = "CenterScreen"
-    $form.Size = New-Object System.Drawing.Size(1320, 860)
-    $form.MinimumSize = New-Object System.Drawing.Size(1100, 760)
-    $form.BackColor = [System.Drawing.Color]::FromArgb(27, 32, 41)
-    $form.ForeColor = [System.Drawing.Color]::FromArgb(232, 236, 241)
-    $form.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-
-    $topPanel = New-Object System.Windows.Forms.Panel
-    $topPanel.Dock = "Top"
-    $topPanel.Height = 120
-    $topPanel.BackColor = [System.Drawing.Color]::FromArgb(34, 41, 53)
-    $form.Controls.Add($topPanel)
-
-    $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Text = "xkzuto's mod analyzer"
-    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 18)
-    $titleLabel.AutoSize = $true
-    $titleLabel.Location = New-Object System.Drawing.Point(18, 12)
-    $titleLabel.ForeColor = [System.Drawing.Color]::FromArgb(122, 231, 216)
-    $topPanel.Controls.Add($titleLabel)
-
-    $subtitleLabel = New-Object System.Windows.Forms.Label
-    $subtitleLabel.Text = "Explainable Minecraft mod scanning with runtime Java checks, GUI review, JSON export, and EXE packaging support."
-    $subtitleLabel.AutoSize = $true
-    $subtitleLabel.Location = New-Object System.Drawing.Point(20, 50)
-    $subtitleLabel.ForeColor = [System.Drawing.Color]::FromArgb(188, 197, 210)
-    $topPanel.Controls.Add($subtitleLabel)
-
-    $pathLabel = New-Object System.Windows.Forms.Label
-    $pathLabel.Text = "Jar or mods folder"
-    $pathLabel.AutoSize = $true
-    $pathLabel.Location = New-Object System.Drawing.Point(20, 82)
-    $pathLabel.ForeColor = [System.Drawing.Color]::FromArgb(215, 220, 227)
-    $topPanel.Controls.Add($pathLabel)
-
-    $pathBox = New-Object System.Windows.Forms.TextBox
-    $pathBox.Location = New-Object System.Drawing.Point(145, 79)
-    $pathBox.Size = New-Object System.Drawing.Size(650, 26)
-    $pathBox.BackColor = [System.Drawing.Color]::FromArgb(18, 23, 30)
-    $pathBox.ForeColor = [System.Drawing.Color]::FromArgb(240, 244, 247)
-    $pathBox.BorderStyle = "FixedSingle"
-    $pathBox.Text = $script:XmaConfig.DefaultPath
-    $topPanel.Controls.Add($pathBox)
-
-    $browseFolderButton = New-Object System.Windows.Forms.Button
-    $browseFolderButton.Text = "Browse Folder"
-    $browseFolderButton.Location = New-Object System.Drawing.Point(810, 76)
-    $browseFolderButton.Size = New-Object System.Drawing.Size(110, 30)
-    $browseFolderButton.BackColor = [System.Drawing.Color]::FromArgb(50, 84, 92)
-    $browseFolderButton.ForeColor = [System.Drawing.Color]::White
-    $browseFolderButton.FlatStyle = "Flat"
-    $topPanel.Controls.Add($browseFolderButton)
-
-    $browseFileButton = New-Object System.Windows.Forms.Button
-    $browseFileButton.Text = "Browse Jar"
-    $browseFileButton.Location = New-Object System.Drawing.Point(928, 76)
-    $browseFileButton.Size = New-Object System.Drawing.Size(100, 30)
-    $browseFileButton.BackColor = [System.Drawing.Color]::FromArgb(50, 84, 92)
-    $browseFileButton.ForeColor = [System.Drawing.Color]::White
-    $browseFileButton.FlatStyle = "Flat"
-    $topPanel.Controls.Add($browseFileButton)
-
-    $scanButton = New-Object System.Windows.Forms.Button
-    $scanButton.Text = "Scan"
-    $scanButton.Location = New-Object System.Drawing.Point(1038, 76)
-    $scanButton.Size = New-Object System.Drawing.Size(90, 30)
-    $scanButton.BackColor = [System.Drawing.Color]::FromArgb(204, 92, 57)
-    $scanButton.ForeColor = [System.Drawing.Color]::White
-    $scanButton.FlatStyle = "Flat"
-    $topPanel.Controls.Add($scanButton)
-
-    $exportJsonButton = New-Object System.Windows.Forms.Button
-    $exportJsonButton.Text = "Export JSON"
-    $exportJsonButton.Location = New-Object System.Drawing.Point(1138, 76)
-    $exportJsonButton.Size = New-Object System.Drawing.Size(100, 30)
-    $exportJsonButton.BackColor = [System.Drawing.Color]::FromArgb(67, 90, 154)
-    $exportJsonButton.ForeColor = [System.Drawing.Color]::White
-    $exportJsonButton.FlatStyle = "Flat"
-    $topPanel.Controls.Add($exportJsonButton)
-
-    $runtimeCheck = New-Object System.Windows.Forms.CheckBox
-    $runtimeCheck.Text = "Runtime Scan"
-    $runtimeCheck.Checked = $true
-    $runtimeCheck.AutoSize = $true
-    $runtimeCheck.Location = New-Object System.Drawing.Point(1248, 22)
-    $runtimeCheck.ForeColor = [System.Drawing.Color]::FromArgb(239, 242, 247)
-    $topPanel.Controls.Add($runtimeCheck)
-
-    $memoryCheck = New-Object System.Windows.Forms.CheckBox
-    $memoryCheck.Text = "Memory Scan"
-    $memoryCheck.Checked = $false
-    $memoryCheck.AutoSize = $true
-    $memoryCheck.Location = New-Object System.Drawing.Point(1248, 48)
-    $memoryCheck.ForeColor = [System.Drawing.Color]::FromArgb(239, 242, 247)
-    $topPanel.Controls.Add($memoryCheck)
-
-    $onlineCheck = New-Object System.Windows.Forms.CheckBox
-    $onlineCheck.Text = "Disable Online Verify"
-    $onlineCheck.Checked = $false
-    $onlineCheck.AutoSize = $true
-    $onlineCheck.Location = New-Object System.Drawing.Point(1248, 74)
-    $onlineCheck.ForeColor = [System.Drawing.Color]::FromArgb(239, 242, 247)
-    $topPanel.Controls.Add($onlineCheck)
-
-    $mainTabs = New-Object System.Windows.Forms.TabControl
-    $mainTabs.Dock = "Fill"
-    $mainTabs.DrawMode = "OwnerDrawFixed"
-    $mainTabs.ItemSize = New-Object System.Drawing.Size(180, 32)
-    $mainTabs.SizeMode = "Fixed"
-    $form.Controls.Add($mainTabs)
-
-    $resultsTab = New-Object System.Windows.Forms.TabPage
-    $resultsTab.Text = "Mod Results"
-    $resultsTab.BackColor = [System.Drawing.Color]::FromArgb(24, 29, 37)
-    $mainTabs.Controls.Add($resultsTab)
-
-    $runtimeTab = New-Object System.Windows.Forms.TabPage
-    $runtimeTab.Text = "Runtime"
-    $runtimeTab.BackColor = [System.Drawing.Color]::FromArgb(24, 29, 37)
-    $mainTabs.Controls.Add($runtimeTab)
-
-    $aboutTab = New-Object System.Windows.Forms.TabPage
-    $aboutTab.Text = "About"
-    $aboutTab.BackColor = [System.Drawing.Color]::FromArgb(24, 29, 37)
-    $mainTabs.Controls.Add($aboutTab)
-
-    $split = New-Object System.Windows.Forms.SplitContainer
-    $split.Dock = "Fill"
-    $split.SplitterDistance = 770
-    $resultsTab.Controls.Add($split)
-
-    $grid = New-Object System.Windows.Forms.DataGridView
-    $grid.Dock = "Fill"
-    $grid.BackgroundColor = [System.Drawing.Color]::FromArgb(18, 23, 30)
-    $grid.BorderStyle = "None"
-    $grid.EnableHeadersVisualStyles = $false
-    $grid.ColumnHeadersDefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(42, 52, 67)
-    $grid.ColumnHeadersDefaultCellStyle.ForeColor = [System.Drawing.Color]::White
-    $grid.DefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(18, 23, 30)
-    $grid.DefaultCellStyle.ForeColor = [System.Drawing.Color]::FromArgb(235, 240, 247)
-    $grid.DefaultCellStyle.SelectionBackColor = [System.Drawing.Color]::FromArgb(67, 90, 154)
-    $grid.DefaultCellStyle.SelectionForeColor = [System.Drawing.Color]::White
-    $grid.RowHeadersVisible = $false
-    $grid.AutoSizeColumnsMode = "Fill"
-    $grid.SelectionMode = "FullRowSelect"
-    $grid.MultiSelect = $false
-    $grid.ReadOnly = $true
-    $grid.AllowUserToAddRows = $false
-    $grid.AllowUserToDeleteRows = $false
-    $grid.AllowUserToResizeRows = $false
-    $grid.AutoGenerateColumns = $false
-    $split.Panel1.Controls.Add($grid)
-
-    $columns = @(
-        @{ Name = "FileName"; HeaderText = "File"; FillWeight = 34 },
-        @{ Name = "Verdict"; HeaderText = "Verdict"; FillWeight = 16 },
-        @{ Name = "Score"; HeaderText = "Score"; FillWeight = 10 },
-        @{ Name = "ModName"; HeaderText = "Metadata Name"; FillWeight = 22 },
-        @{ Name = "ModId"; HeaderText = "Mod ID"; FillWeight = 18 },
-        @{ Name = "FindingCount"; HeaderText = "Hits"; FillWeight = 10 }
-    )
-
-    foreach ($columnInfo in $columns) {
-        $column = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
-        $column.DataPropertyName = $columnInfo.Name
-        $column.Name = $columnInfo.Name
-        $column.HeaderText = $columnInfo.HeaderText
-        $column.FillWeight = $columnInfo.FillWeight
-        $grid.Columns.Add($column) | Out-Null
-    }
-
-    $detailBox = New-Object System.Windows.Forms.RichTextBox
-    $detailBox.Dock = "Fill"
-    $detailBox.ReadOnly = $true
-    $detailBox.BackColor = [System.Drawing.Color]::FromArgb(18, 23, 30)
-    $detailBox.ForeColor = [System.Drawing.Color]::FromArgb(236, 239, 244)
-    $detailBox.BorderStyle = "None"
-    $detailBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $split.Panel2.Controls.Add($detailBox)
-
-    $runtimeBox = New-Object System.Windows.Forms.RichTextBox
-    $runtimeBox.Dock = "Fill"
-    $runtimeBox.ReadOnly = $true
-    $runtimeBox.BackColor = [System.Drawing.Color]::FromArgb(18, 23, 30)
-    $runtimeBox.ForeColor = [System.Drawing.Color]::FromArgb(236, 239, 244)
-    $runtimeBox.BorderStyle = "None"
-    $runtimeBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $runtimeBox.Text = "Runtime scan has not been run yet."
-    $runtimeTab.Controls.Add($runtimeBox)
-
-    $aboutBox = New-Object System.Windows.Forms.RichTextBox
-    $aboutBox.Dock = "Fill"
-    $aboutBox.ReadOnly = $true
-    $aboutBox.BackColor = [System.Drawing.Color]::FromArgb(18, 23, 30)
-    $aboutBox.ForeColor = [System.Drawing.Color]::FromArgb(236, 239, 244)
-    $aboutBox.BorderStyle = "None"
-    $aboutBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $aboutBox.Text = @"
-xkzuto's mod analyzer
-
-What this build focuses on:
-- Explainable reasons instead of silent keyword hits
-- Placeholder metadata and hidden namespace detection
-- Suspicious mixin, injection, and runtime helper detection
-- Runtime Java command-line scan
-- Optional Java memory scan
-- JSON and CSV export
-- EXE packaging support through build-release.ps1
-
-Credits:
-$((@($script:XmaConfig.Credits | ForEach-Object { "- $($_.Project) by $($_.Name)`r`n  $($_.Url)" }) -join "`r`n"))
-
-GitHub raw command after upload:
-powershell -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod 'https://raw.githubusercontent.com/xKzuto/xkzutos-mod-analyzer/main/XkzutosModAnalyzer.ps1')"
-"@
-    $aboutTab.Controls.Add($aboutBox)
-
-    $statusStrip = New-Object System.Windows.Forms.StatusStrip
-    $statusStrip.BackColor = [System.Drawing.Color]::FromArgb(34, 41, 53)
-    $statusLabel = New-Object System.Windows.Forms.ToolStripStatusLabel
-    $statusLabel.Text = "Ready."
-    $statusLabel.ForeColor = [System.Drawing.Color]::White
-    $statusStrip.Items.Add($statusLabel) | Out-Null
-    $form.Controls.Add($statusStrip)
-
-    $mainTabs.Add_DrawItem({
-        param($sender, $e)
-        $tabPage = $mainTabs.TabPages[$e.Index]
-        $rect = $e.Bounds
-        $selected = $e.State -band [System.Windows.Forms.DrawItemState]::Selected
-        $brush = if ($selected) {
-            New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(67, 90, 154))
-        } else {
-            New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(34, 41, 53))
-        }
-        $textBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-        $e.Graphics.FillRectangle($brush, $rect)
-        $sf = New-Object System.Drawing.StringFormat
-        $sf.Alignment = "Center"
-        $sf.LineAlignment = "Center"
-        $e.Graphics.DrawString($tabPage.Text, $form.Font, $textBrush, $rect, $sf)
-        $brush.Dispose()
-        $textBrush.Dispose()
-        $sf.Dispose()
-    })
-
-    $browseFolderButton.Add_Click({
-        $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-        $dialog.SelectedPath = $pathBox.Text
-        if ($dialog.ShowDialog() -eq "OK") {
-            $pathBox.Text = $dialog.SelectedPath
-        }
-    })
-
-    $browseFileButton.Add_Click({
-        $dialog = New-Object System.Windows.Forms.OpenFileDialog
-        $dialog.Filter = "Jar files (*.jar)|*.jar|All files (*.*)|*.*"
-        if ($dialog.ShowDialog() -eq "OK") {
-            $pathBox.Text = $dialog.FileName
-        }
-    })
-
-    $grid.Add_SelectionChanged({
-        if (-not $script:XmaGuiLastScan) {
-            return
-        }
-
-        if ($grid.SelectedRows.Count -eq 0) {
-            return
-        }
-
-        $fileName = [string]$grid.SelectedRows[0].Cells["FileName"].Value
-        $report = $script:XmaGuiLastScan.ModFindings | Where-Object { $_.FileName -eq $fileName } | Select-Object -First 1
-        if ($report) {
-            $detailBox.Text = Convert-XmaReportToText -Report $report
-        }
-    })
-
-    $scanButton.Add_Click({
-        if ([string]::IsNullOrWhiteSpace($pathBox.Text)) {
-            [System.Windows.Forms.MessageBox]::Show("Choose a jar file or mods folder first.", $script:XmaConfig.Name, "OK", "Warning") | Out-Null
-            return
-        }
-
-        try {
-            $statusLabel.Text = "Scanning..."
-            $form.UseWaitCursor = $true
-            $scan = Invoke-XmaScan -TargetPath $pathBox.Text -IncludeRuntimeScan:$runtimeCheck.Checked -EnableMemoryScan:$memoryCheck.Checked -MaxMemoryMB $MemoryScanMB
-            $script:XmaGuiLastScan = $scan
-
-            $rows = foreach ($report in $scan.ModFindings) {
-                [pscustomobject]@{
-                    FileName = $report.FileName
-                    Verdict = $report.Verdict
-                    Score = $report.Score
-                    ModName = [string]$report.Metadata.Name
-                    ModId = [string]$report.Metadata.Id
-                    FindingCount = $report.Findings.Count
-                }
-            }
-
-            $grid.DataSource = @($rows)
-            $runtimeBox.Text = Convert-XmaRuntimeToText -RuntimeFindings $scan.RuntimeFindings
-            if ($scan.ModFindings.Count -gt 0) {
-                $grid.ClearSelection()
-                $grid.Rows[0].Selected = $true
-                $detailBox.Text = Convert-XmaReportToText -Report $scan.ModFindings[0]
-            } else {
-                $detailBox.Text = "No jar files were found in the selected path."
-            }
-
-            $statusLabel.Text = "Scan complete. Files scanned: $($scan.ModFindings.Count)"
-        } catch {
-            $statusLabel.Text = "Scan failed."
-            [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, $script:XmaConfig.Name, "OK", "Error") | Out-Null
-        } finally {
-            $form.UseWaitCursor = $false
-        }
-    })
-
-    $exportJsonButton.Add_Click({
-        if (-not $script:XmaGuiLastScan) {
-            [System.Windows.Forms.MessageBox]::Show("Run a scan first.", $script:XmaConfig.Name, "OK", "Warning") | Out-Null
-            return
-        }
-
-        $dialog = New-Object System.Windows.Forms.SaveFileDialog
-        $dialog.Filter = "JSON (*.json)|*.json|CSV (*.csv)|*.csv"
-        $dialog.FileName = "xkzuto-mod-analyzer-report.json"
-        if ($dialog.ShowDialog() -ne "OK") {
-            return
-        }
-
-        try {
-            $format = if ($dialog.FileName.ToLowerInvariant().EndsWith(".csv")) { "Csv" } else { "Json" }
-            Export-XmaResults -ScanResult $script:XmaGuiLastScan -Destination $dialog.FileName -Format $format
-            $statusLabel.Text = "Exported to $($dialog.FileName)"
-        } catch {
-            [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, $script:XmaConfig.Name, "OK", "Error") | Out-Null
-        }
-    })
-
-    [void]$form.ShowDialog()
-}
-
 function Resolve-XmaInteractivePath {
-    if ($Path) {
-        return $Path
+    while ($true) {
+        $candidate = $Path
+        if (-not $candidate) {
+            Write-Host "Enter a jar file or mods folder path. Press Enter to use the default Minecraft mods folder." -ForegroundColor Cyan
+            Write-Host "Default: $($script:XmaConfig.DefaultPath)" -ForegroundColor DarkGray
+            $candidate = Read-Host "Path"
+            if ([string]::IsNullOrWhiteSpace($candidate)) {
+                $candidate = $script:XmaConfig.DefaultPath
+            }
+        }
+
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+
+        Write-Host "That path does not exist: $candidate" -ForegroundColor Yellow
+        Write-Host "Paste a valid jar file or mods folder path." -ForegroundColor DarkGray
+        Write-Host ""
+        $Path = $null
     }
-
-    Write-Host "Enter a jar file or mods folder path. Press Enter for the default Minecraft mods folder." -ForegroundColor Cyan
-    Write-Host "Default: $($script:XmaConfig.DefaultPath)" -ForegroundColor DarkGray
-    $value = Read-Host "Path"
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        return $script:XmaConfig.DefaultPath
-    }
-
-    return $value
-}
-
-if ($Gui) {
-    Start-XmaGui
-    return
 }
 
 $resolvedPath = Resolve-XmaInteractivePath

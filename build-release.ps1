@@ -73,14 +73,14 @@ if ($ps2exeScript) {
     $escapedOutput = $exePath.Replace("'", "''")
     $command = @"
 . '$escapedPs2ExeScript'
-Invoke-ps2exe -inputFile '$escapedInput' -outputFile '$escapedOutput' -title 'Xkzutos Mod Analyzer' -description 'Minecraft mod analyzer with explainable heuristics, GUI, runtime scan, and export support.' -company 'xKzuto' -product 'Xkzutos Mod Analyzer' -nested
+Invoke-ps2exe -inputFile '$escapedInput' -outputFile '$escapedOutput' -title 'Xkzutos Mod Analyzer' -description 'Minecraft mod analyzer with explainable heuristics and console-first runtime scanning.' -company 'xKzuto' -product 'Xkzutos Mod Analyzer' -nested
 "@
     & $desktopPowerShell -NoProfile -ExecutionPolicy Bypass -Command $command
     if ($LASTEXITCODE -ne 0) {
         throw "Windows PowerShell PS2EXE compile failed with exit code $LASTEXITCODE"
     }
 } else {
-    Invoke-PS2EXE -InputFile $scriptPath -OutputFile $exePath -Title "Xkzutos Mod Analyzer" -Description "Minecraft mod analyzer with explainable heuristics, GUI, runtime scan, and export support." -Company "xKzuto" -Product "Xkzutos Mod Analyzer"
+    Invoke-PS2EXE -InputFile $scriptPath -OutputFile $exePath -Title "Xkzutos Mod Analyzer" -Description "Minecraft mod analyzer with explainable heuristics and console-first runtime scanning." -Company "xKzuto" -Product "Xkzutos Mod Analyzer"
 }
 if (-not (Test-Path -LiteralPath $exePath)) {
     throw "PS2EXE did not create the expected executable at $exePath"

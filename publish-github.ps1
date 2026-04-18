@@ -66,6 +66,6 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "GitHub repo ready: https://github.com/$fullRepo" -ForegroundColor Green
-Write-Host "Safe GUI run command:" -ForegroundColor Cyan
-$safeCommand = "powershell -NoProfile -ExecutionPolicy Bypass -Command `"`$url='https://raw.githubusercontent.com/$Owner/$RepoName/main/XkzutosModAnalyzer.ps1'; `$tmp=Join-Path `$env:TEMP 'XkzutosModAnalyzer.ps1'; Invoke-WebRequest -UseBasicParsing -Uri `$url -OutFile `$tmp; & `$tmp -Gui`""
-Write-Host $safeCommand -ForegroundColor White
+Write-Host "Raw run command:" -ForegroundColor Cyan
+$rawCommand = "powershell -ExecutionPolicy Bypass -Command `"Invoke-Expression (Invoke-RestMethod 'https://raw.githubusercontent.com/$Owner/$RepoName/main/XkzutosModAnalyzer.ps1')`""
+Write-Host $rawCommand -ForegroundColor White
