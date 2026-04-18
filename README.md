@@ -10,7 +10,9 @@ Use this exact GitHub raw command:
 powershell -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod 'https://raw.githubusercontent.com/xkzuto96/xkzutos-mod-analyzer/main/XkzutosModAnalyzer.ps1')"
 ```
 
-That runs the analyzer directly in console mode and prompts for the mods folder or jar path, similar to a simple single-file analyzer script.
+That runs the analyzer directly in console mode and prompts for the mods folder or jar path.
+
+Important: it does not auto-pick `.minecraft\mods`. You must enter a folder or jar path (or type `.` for the current folder).
 
 ## Local Run
 
@@ -32,32 +34,52 @@ Scan one jar:
 powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\path\to\mod.jar"
 ```
 
-Include runtime Java checks:
+Skip runtime JVM argument scan:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -RuntimeScan
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -SkipRuntimeScan
 ```
 
-Include memory scan:
+Skip java/javaw memory scan:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -RuntimeScan -MemoryScan
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -SkipMemoryScan
 ```
 
-Export JSON:
+Disable Modrinth/Megabase verification:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -OutFile ".\report.json" -OutputFormat Json
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -NoModVerification
+```
+
+Disable only Megabase verification fallback:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -NoMegabase
+```
+
+Reveal hidden/system jar attributes while scanning:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -RevealHidden
+```
+
+Memory scan cap (MB per process):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -MemoryScanMB 256
 ```
 
 ## What It Flags
 
-- placeholder or fake metadata like `template-mod` or `com.example`
-- large hidden short-name packages like `a/` or `b/`
-- suspicious mixins and client-side injection helpers
-- role mismatches, like a fake performance mod containing combat or UI code
-- runtime Java agent and loader injection arguments
-- optional memory hits for suspicious runtime strings
+- Token checks inside mod jars for:
+  - `autoclicker`, `aimassist`, `reach`, `velocity`, `killaura`, `scaffold`, `fly`, `speed`, `esp`, `xray`, `selfdestruct`, `bypass`, `exploit`
+- Obfuscation markers:
+  - `a.class`, `b.class`, high counts of single-letter class names
+- Hidden/system jar attributes in the target mods folder
+- JVM runtime injection argument patterns in `javaw.exe`/`java.exe`
+- Java memory string hits for known cheat identifiers (Mapped + Private memory scan with minimum string length 5)
+- Mod hash verification via Modrinth and Megabase
 
 ## Credits
 
