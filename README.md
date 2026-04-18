@@ -14,6 +14,12 @@ That runs the analyzer directly in console mode and prompts for the mods folder 
 
 Important: it does not auto-pick `.minecraft\mods`. You must enter a folder or jar path (or type `.` for the current folder).
 
+One-command run with an explicit path (no prompt):
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/xkzuto96/xkzutos-mod-analyzer/main/XkzutosModAnalyzer.ps1'))) -Path 'C:\Path\To\mods'"
+```
+
 ## Local Run
 
 ```powershell
