@@ -8,6 +8,7 @@ param(
     [ValidateSet("Console", "Json", "Csv")]
     [string]$OutputFormat = "Console",
     [string]$OutFile,
+    [switch]$OnlineVerification,
     [switch]$NoOnlineVerification,
     [switch]$Quiet
 )
@@ -17,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:XmaConfig = @{
     Name = "xkzuto's mod analyzer"
-    Version = "1.0.3"
+    Version = "1.0.4"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -89,6 +90,11 @@ $script:XmaConfig = @{
         "Classpath manipulation" = @("-Xbootclasspath", "-Djava.system.class.loader", "-Djava.class.path")
         "Mixin debug export" = @("-Dfabric.mixin.debug.export", "-Dmixin.debug.export")
     }
+}
+
+$script:XmaEnableOnlineVerification = $false
+if ($OnlineVerification -and -not $NoOnlineVerification) {
+    $script:XmaEnableOnlineVerification = $true
 }
 
 $script:XmaMemoryApiLoaded = $false
@@ -367,7 +373,7 @@ function Get-XmaModrinthVerification {
         [string]$JarPath
     )
 
-    if ($NoOnlineVerification) {
+    if (-not $script:XmaEnableOnlineVerification) {
         return $null
     }
 
@@ -378,12 +384,12 @@ function Get-XmaModrinthVerification {
 
     try {
         $headers = @{ "User-Agent" = "xkzutos-mod-analyzer/1.0.0" }
-        $versionInfo = Invoke-RestMethod -Method Get -Uri "https://api.modrinth.com/v2/version_file/$sha1" -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+        $versionInfo = Invoke-RestMethod -Method Get -Uri "https://api.modrinth.com/v2/version_file/$sha1" -Headers $headers -TimeoutSec 4 -ErrorAction Stop
         if (-not $versionInfo.project_id) {
             return $null
         }
 
-        $projectInfo = Invoke-RestMethod -Method Get -Uri "https://api.modrinth.com/v2/project/$($versionInfo.project_id)" -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+        $projectInfo = Invoke-RestMethod -Method Get -Uri "https://api.modrinth.com/v2/project/$($versionInfo.project_id)" -Headers $headers -TimeoutSec 4 -ErrorAction Stop
         return [pscustomobject]@{
             Verified = $true
             Project = [string]$projectInfo.title
@@ -834,9 +840,41 @@ function Invoke-XmaScan {
         $jarFiles = @($targetItem)
     }
 
+    $jarCount = @($jarFiles).Count
+    if (-not $Quiet) {
+        Write-Host ""
+        Write-Host "Path accepted: $($targetItem.FullName)" -ForegroundColor Green
+        Write-Host "Jar files found: $jarCount" -ForegroundColor Cyan
+        if ($script:XmaEnableOnlineVerification) {
+            Write-Host "Online verification: on" -ForegroundColor DarkYellow
+        } else {
+            Write-Host "Online verification: off for faster scanning. Use -OnlineVerification if you want Modrinth checks." -ForegroundColor DarkGray
+        }
+        Write-Host ""
+    }
+
+    if ($jarCount -eq 0) {
+        if (-not $Quiet) {
+            Write-Host "No jar files were found in the selected folder." -ForegroundColor Yellow
+        }
+    }
+
     $reports = New-Object System.Collections.Generic.List[object]
+    $scanIndex = 0
     foreach ($jarFile in $jarFiles) {
+        $scanIndex++
+        if (-not $Quiet) {
+            $percentComplete = [int](($scanIndex / [Math]::Max($jarCount, 1)) * 100)
+            Write-Progress -Activity "Scanning mods" -Status "[$scanIndex/$jarCount] $($jarFile.Name)" -PercentComplete $percentComplete
+            Write-Host ("[{0}/{1}] Scanning {2}" -f $scanIndex, $jarCount, $jarFile.Name) -ForegroundColor DarkCyan
+        }
+
         $reports.Add((Measure-XmaJarRisk -JarPath $jarFile.FullName))
+    }
+
+    if (-not $Quiet -and $jarCount -gt 0) {
+        Write-Progress -Activity "Scanning mods" -Completed
+        Write-Host ""
     }
 
     $runtimeFindings = @()
