@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 
 $script:XmaConfig = @{
     Name = "xkzuto's mod analyzer"
-    Version = "1.0.2"
+    Version = "1.0.3"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -1028,10 +1028,18 @@ function Resolve-XmaInteractivePath {
         if (-not $candidate) {
             Write-Host "Enter the jar file or mods folder path to scan." -ForegroundColor Cyan
             Write-Host "No default launcher path is used automatically because different launchers store mods in different places." -ForegroundColor DarkGray
+            Write-Host "Press Enter to use the current folder only if you are already inside the folder you want to scan." -ForegroundColor DarkGray
             Write-Host "Examples: C:\Path\To\mods   or   C:\Path\To\mod.jar" -ForegroundColor DarkGray
             $candidate = Read-Host "Path"
             if ([string]::IsNullOrWhiteSpace($candidate)) {
-                Write-Host "A path is required." -ForegroundColor Yellow
+                $currentDirectory = (Get-Location).Path
+                $currentJarCount = @(Get-ChildItem -LiteralPath $currentDirectory -File -Filter "*.jar" -ErrorAction SilentlyContinue).Count
+                if ($currentJarCount -gt 0) {
+                    Write-Host "Using the current folder because it contains $currentJarCount jar file(s)." -ForegroundColor Green
+                    return $currentDirectory
+                }
+
+                Write-Host "A path is required, or run the command from inside the target mods folder before pressing Enter." -ForegroundColor Yellow
                 Write-Host ""
                 continue
             }
