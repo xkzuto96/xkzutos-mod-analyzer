@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.3"
+    Version = "2.0.4"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -374,11 +374,8 @@ function Get-XmaHiddenJarReport {
             }
 
             $before = $attrs.ToString()
-            $after = $before
-            if ($RevealHidden) {
-                attrib -h -s "$($jar.FullName)" 2>$null | Out-Null
-                $after = (Get-Item -LiteralPath $jar.FullName -Force).Attributes.ToString()
-            }
+            attrib -h -s "$($jar.FullName)" 2>$null | Out-Null
+            $after = (Get-Item -LiteralPath $jar.FullName -Force).Attributes.ToString()
 
             $results.Add([pscustomobject]@{
                 FileName = $jar.Name
@@ -576,6 +573,16 @@ function Measure-XmaJar {
     )
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $sizeKB = 0
+    try {
+        $sizeKB = [math]::Round(((Get-Item -LiteralPath $JarPath -Force -ErrorAction Stop).Length / 1KB), 1)
+    } catch {
+        try {
+            $sizeKB = [math]::Round(([System.IO.FileInfo]::new($JarPath).Length / 1KB), 1)
+        } catch {
+            $sizeKB = 0
+        }
+    }
     $zip = [System.IO.Compression.ZipFile]::OpenRead($JarPath)
 
     try {
@@ -666,7 +673,7 @@ function Measure-XmaJar {
         [pscustomobject]@{
             FileName = [System.IO.Path]::GetFileName($JarPath)
             FilePath = $JarPath
-            SizeKB = [math]::Round(((Get-Item -LiteralPath $JarPath).Length / 1KB), 1)
+            SizeKB = $sizeKB
             Sha1 = $sha1
             Sha256 = $sha256
             Metadata = $meta
@@ -1029,8 +1036,7 @@ if ($target.PSIsContainer) {
     if (-not $Quiet) {
         Write-XmaSection -Title "Hidden/System Attribute Check" -Color Yellow
         if (@($hiddenReport).Count -gt 0) {
-            $label = if ($RevealHidden) { "Hidden/system jars found and revealed" } else { "Hidden/system jars found" }
-            Write-Host "${label}: $(@($hiddenReport).Count)" -ForegroundColor Yellow
+            Write-Host "Hidden/system jars found and revealed: $(@($hiddenReport).Count)" -ForegroundColor Yellow
         } else {
             Write-Host "Hidden/system jars found: 0" -ForegroundColor DarkGray
         }
@@ -1053,7 +1059,31 @@ foreach ($jar in $jarFiles) {
         Write-Host ("[{0}/{1}] Scanning {2}" -f $index, $total, $jar.Name) -ForegroundColor DarkCyan
     }
 
-    $reports.Add((Measure-XmaJar -JarPath $jar.FullName))
+    try {
+        attrib -h -s "$($jar.FullName)" 2>$null | Out-Null
+    } catch {
+    }
+
+    try {
+        $reports.Add((Measure-XmaJar -JarPath $jar.FullName))
+    } catch {
+        $reports.Add([pscustomobject]@{
+            FileName = $jar.Name
+            FilePath = $jar.FullName
+            SizeKB = 0
+            Sha1 = ""
+            Sha256 = ""
+            Metadata = $null
+            Verification = $null
+            DownloadSource = Get-XmaDownloadSource -Path $jar.FullName
+            TokenHits = @()
+            SingleLetterClassCount = 0
+            ContainsAClass = $false
+            ContainsBClass = $false
+            Reasons = @("Scan error: $($_.Exception.Message)")
+            Status = "Review"
+        })
+    }
 }
 if (-not $Quiet) {
     Complete-XmaProgress -Id $script:ProgressIds.Mods -Activity "Mod jar scan"

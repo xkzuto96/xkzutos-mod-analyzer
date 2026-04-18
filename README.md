@@ -64,7 +64,8 @@ Disable only Megabase verification fallback:
 powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -NoMegabase
 ```
 
-Reveal hidden/system jar attributes while scanning:
+Hidden/system jar attributes are auto-revealed before scanning.
+Legacy manual flag (still accepted):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -RevealHidden
