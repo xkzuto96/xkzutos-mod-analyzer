@@ -39,7 +39,8 @@ if (-not $localEmail) {
 
 & git add .
 
-$hasStagedChanges = (& git diff --cached --name-only).Trim()
+$stagedOutput = & git diff --cached --name-only
+$hasStagedChanges = if ($null -ne $stagedOutput) { ($stagedOutput | Out-String).Trim() } else { "" }
 $hasCommits = $true
 & git rev-parse --verify HEAD 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) {
