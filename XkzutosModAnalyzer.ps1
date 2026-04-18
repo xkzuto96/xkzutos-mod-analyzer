@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 
 $script:XmaConfig = @{
     Name = "xkzuto's mod analyzer"
-    Version = "1.0.0"
+    Version = "1.0.2"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -768,9 +768,11 @@ function Measure-XmaJarRisk {
         }
 
         $findingArray = @($findings.ToArray())
-        $score = ($findingArray | Measure-Object -Property Score -Sum).Sum
-        if (-not $score) {
-            $score = 0
+        $score = 0
+        foreach ($finding in $findingArray) {
+            if ($null -ne $finding -and $finding.PSObject.Properties["Score"]) {
+                $score += [int]$finding.Score
+            }
         }
 
         $verdict = if ($score -ge 70) {
