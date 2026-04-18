@@ -8,6 +8,7 @@ param(
     [switch]$NoModVerification,
     [switch]$NoMegabase,
     [switch]$RevealHidden,
+    [switch]$ShowStatusLists,
     [switch]$Quiet
 )
 
@@ -784,6 +785,29 @@ function Get-XmaSummaryBucket {
     return $buckets
 }
 
+function Write-XmaStatusList {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Label,
+        [Parameter(Mandatory)]
+        [string]$Color,
+        [object[]]$Items
+    )
+
+    $rows = @($Items | Sort-Object FileName)
+    Write-Host "$Label ($($rows.Count))" -ForegroundColor $Color
+    if ($rows.Count -eq 0) {
+        Write-Host "  (none)" -ForegroundColor DarkGray
+        Write-Host ""
+        return
+    }
+
+    foreach ($row in $rows) {
+        Write-Host "  - $($row.FileName)" -ForegroundColor White
+    }
+    Write-Host ""
+}
+
 Write-XmaBanner
 $resolvedPath = Resolve-XmaPath
 $target = Get-Item -LiteralPath $resolvedPath -ErrorAction Stop
@@ -884,6 +908,15 @@ Write-Host "Review: $($summary['Review'])" -ForegroundColor Yellow
 Write-Host "Review (Verified): $($summary['Review (Verified)'])" -ForegroundColor DarkYellow
 Write-Host "Suspicious: $($summary['Suspicious'])" -ForegroundColor Red
 Write-Host ""
+
+if ($ShowStatusLists) {
+    Write-Host "Status lists" -ForegroundColor Cyan
+    Write-XmaStatusList -Label "Verified" -Color Green -Items @($reportArray | Where-Object { $_.Status -eq "Verified" })
+    Write-XmaStatusList -Label "Unknown" -Color Yellow -Items @($reportArray | Where-Object { $_.Status -eq "Unknown" })
+    Write-XmaStatusList -Label "Review" -Color DarkYellow -Items @($reportArray | Where-Object { $_.Status -eq "Review" })
+    Write-XmaStatusList -Label "Review (Verified)" -Color DarkYellow -Items @($reportArray | Where-Object { $_.Status -eq "Review (Verified)" })
+    Write-XmaStatusList -Label "Suspicious" -Color Red -Items @($reportArray | Where-Object { $_.Status -eq "Suspicious" })
+}
 
 $flagged = @($reportArray | Where-Object { $_.Status -ne "Verified" -and $_.Status -ne "Unknown" })
 if ($flagged.Count -gt 0) {

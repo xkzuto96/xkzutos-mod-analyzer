@@ -76,6 +76,12 @@ Memory scan cap (MB per process):
 powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -MemoryScanMB 256
 ```
 
+Print full per-status mod lists:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -ShowStatusLists
+```
+
 ## What It Flags
 
 - Token checks inside mod jars for:
