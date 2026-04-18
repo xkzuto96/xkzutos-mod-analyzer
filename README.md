@@ -23,7 +23,7 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1
 Scan a specific folder:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "$env:APPDATA\.minecraft\mods"
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods"
 ```
 
 Scan one jar:
@@ -35,19 +35,19 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\path
 Include runtime Java checks:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "$env:APPDATA\.minecraft\mods" -RuntimeScan
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -RuntimeScan
 ```
 
 Include memory scan:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "$env:APPDATA\.minecraft\mods" -RuntimeScan -MemoryScan
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -RuntimeScan -MemoryScan
 ```
 
 Export JSON:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "$env:APPDATA\.minecraft\mods" -OutFile ".\report.json" -OutputFormat Json
+powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -OutFile ".\report.json" -OutputFormat Json
 ```
 
 ## What It Flags

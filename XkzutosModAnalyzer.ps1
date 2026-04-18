@@ -19,7 +19,6 @@ $script:XmaConfig = @{
     Name = "xkzuto's mod analyzer"
     Version = "1.0.0"
     Creator = "xKzuto"
-    DefaultPath = Join-Path $env:APPDATA ".minecraft\mods"
     Credits = @(
         [pscustomobject]@{
             Name = "Veridon"
@@ -1025,11 +1024,14 @@ function Resolve-XmaInteractivePath {
     while ($true) {
         $candidate = $Path
         if (-not $candidate) {
-            Write-Host "Enter a jar file or mods folder path. Press Enter to use the default Minecraft mods folder." -ForegroundColor Cyan
-            Write-Host "Default: $($script:XmaConfig.DefaultPath)" -ForegroundColor DarkGray
+            Write-Host "Enter the jar file or mods folder path to scan." -ForegroundColor Cyan
+            Write-Host "No default launcher path is used automatically because different launchers store mods in different places." -ForegroundColor DarkGray
+            Write-Host "Examples: C:\Path\To\mods   or   C:\Path\To\mod.jar" -ForegroundColor DarkGray
             $candidate = Read-Host "Path"
             if ([string]::IsNullOrWhiteSpace($candidate)) {
-                $candidate = $script:XmaConfig.DefaultPath
+                Write-Host "A path is required." -ForegroundColor Yellow
+                Write-Host ""
+                continue
             }
         }
 
