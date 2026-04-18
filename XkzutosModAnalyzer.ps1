@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.1"
+    Version = "2.0.2"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -138,6 +138,87 @@ $script:MemoryNeedlesNormalized = @(
 
 $script:MemoryApiLoaded = $false
 $script:PathWasExplicit = $PSBoundParameters.ContainsKey("Path") -and -not [string]::IsNullOrWhiteSpace($Path)
+$script:ProgressIds = @{
+    Hidden = 10
+    Mods = 11
+    Runtime = 12
+    MemoryTargets = 13
+    MemoryBytes = 14
+}
+
+function Disable-XmaConsoleQuickEdit {
+    # Prevent console freeze when the user clicks/selects text in the window.
+    try {
+        if (-not ("XmaConsoleNative" -as [type])) {
+            Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class XmaConsoleNative {
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern IntPtr GetStdHandle(int nStdHandle);
+
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out int lpMode);
+
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern bool SetConsoleMode(IntPtr hConsoleHandle, int dwMode);
+}
+"@ -ErrorAction Stop
+        }
+
+        $stdInputHandle = [XmaConsoleNative]::GetStdHandle(-10)
+        $invalidHandle = [IntPtr]::new(-1)
+        if ($stdInputHandle -eq [IntPtr]::Zero -or $stdInputHandle -eq $invalidHandle) {
+            return
+        }
+
+        $mode = 0
+        if (-not [XmaConsoleNative]::GetConsoleMode($stdInputHandle, [ref]$mode)) {
+            return
+        }
+
+        $enableExtendedFlags = 0x0080
+        $enableQuickEditMode = 0x0040
+        $newMode = $mode -bor $enableExtendedFlags
+        $newMode = $newMode -band (-bnot $enableQuickEditMode)
+        if ($newMode -ne $mode) {
+            [void][XmaConsoleNative]::SetConsoleMode($stdInputHandle, $newMode)
+        }
+    } catch {
+    }
+}
+
+function Write-XmaProgress {
+    param(
+        [Parameter(Mandatory)]
+        [int]$Id,
+        [Parameter(Mandatory)]
+        [string]$Activity,
+        [Parameter(Mandatory)]
+        [string]$Status,
+        [double]$Current = 0,
+        [double]$Total = 100
+    )
+
+    if ($Quiet) { return }
+    $safeTotal = if ($Total -le 0) { 1 } else { $Total }
+    $safeCurrent = [Math]::Max(0, [Math]::Min($Current, $safeTotal))
+    $percent = [int][Math]::Floor(($safeCurrent / [double]$safeTotal) * 100)
+    Write-Progress -Id $Id -Activity $Activity -Status $Status -PercentComplete $percent
+}
+
+function Complete-XmaProgress {
+    param(
+        [Parameter(Mandatory)]
+        [int]$Id,
+        [Parameter(Mandatory)]
+        [string]$Activity
+    )
+
+    if ($Quiet) { return }
+    Write-Progress -Id $Id -Activity $Activity -Completed
+}
 
 function Write-XmaBanner {
     if ($Quiet) { return }
@@ -229,13 +310,21 @@ function Get-XmaDownloadSource {
 function Get-XmaHiddenJarReport {
     param(
         [Parameter(Mandatory)]
-        [string]$FolderPath
+        [string]$FolderPath,
+        [switch]$ShowProgress
     )
 
     $results = New-Object System.Collections.Generic.List[object]
     $jars = @(Get-ChildItem -LiteralPath $FolderPath -Force -File -Filter "*.jar" -ErrorAction SilentlyContinue)
+    $total = @($jars).Count
+    $index = 0
 
     foreach ($jar in $jars) {
+        $index++
+        if ($ShowProgress) {
+            Write-XmaProgress -Id $script:ProgressIds.Hidden -Activity "Hidden/system scan" -Status "[$index/$total] $($jar.Name)" -Current $index -Total $total
+        }
+
         try {
             $item = Get-Item -LiteralPath $jar.FullName -Force -ErrorAction Stop
             $attrs = $item.Attributes
@@ -262,6 +351,10 @@ function Get-XmaHiddenJarReport {
             })
         } catch {
         }
+    }
+
+    if ($ShowProgress) {
+        Complete-XmaProgress -Id $script:ProgressIds.Hidden -Activity "Hidden/system scan"
     }
 
     return @($results.ToArray())
@@ -566,10 +659,20 @@ function Get-XmaJavaProcesses {
 }
 
 function Measure-XmaRuntimeInjection {
-    param([object[]]$JavaProcesses)
+    param(
+        [object[]]$JavaProcesses,
+        [switch]$ShowProgress
+    )
 
     $results = New-Object System.Collections.Generic.List[object]
+    $total = @($JavaProcesses).Count
+    $index = 0
     foreach ($proc in $JavaProcesses) {
+        $index++
+        if ($ShowProgress) {
+            Write-XmaProgress -Id $script:ProgressIds.Runtime -Activity "JVM injection scan" -Status "[$index/$total] PID $($proc.ProcessId) ($($proc.Name))" -Current $index -Total $total
+        }
+
         $cmd = [string]$proc.CommandLine
         if ([string]::IsNullOrWhiteSpace($cmd)) {
             continue
@@ -608,6 +711,10 @@ function Measure-XmaRuntimeInjection {
                 Findings = $findingsUnique
             })
         }
+    }
+
+    if ($ShowProgress) {
+        Complete-XmaProgress -Id $script:ProgressIds.Runtime -Activity "JVM injection scan"
     }
 
     return @($results.ToArray())
@@ -667,11 +774,18 @@ function Search-XmaProcessMemory {
     param(
         [Parameter(Mandatory)]
         [int]$ProcessId,
-        [int]$MaxMemoryMB = 192
+        [int]$MaxMemoryMB = 192,
+        [switch]$ShowProgress,
+        [int]$ProgressId = 0,
+        [string]$ProgressActivity = ""
     )
 
     Initialize-XmaMemoryApi
     if (-not $script:MemoryApiLoaded) {
+        if ($ShowProgress -and $ProgressId -gt 0) {
+            $activity = if ([string]::IsNullOrWhiteSpace($ProgressActivity)) { "Memory strings scan PID $ProcessId" } else { $ProgressActivity }
+            Complete-XmaProgress -Id $ProgressId -Activity $activity
+        }
         return [pscustomobject]@{
             ProcessId = $ProcessId
             Error = "Memory API is unavailable on this host."
@@ -681,6 +795,10 @@ function Search-XmaProcessMemory {
 
     $handle = [XmaMem]::OpenProcess(([XmaMem]::PROCESS_QUERY_INFORMATION -bor [XmaMem]::PROCESS_VM_READ), $false, $ProcessId)
     if ($handle -eq [IntPtr]::Zero) {
+        if ($ShowProgress -and $ProgressId -gt 0) {
+            $activity = if ([string]::IsNullOrWhiteSpace($ProgressActivity)) { "Memory strings scan PID $ProcessId" } else { $ProgressActivity }
+            Complete-XmaProgress -Id $ProgressId -Activity $activity
+        }
         return [pscustomobject]@{
             ProcessId = $ProcessId
             Error = "Could not open process. Try running PowerShell as administrator."
@@ -690,10 +808,12 @@ function Search-XmaProcessMemory {
 
     $maxBytes = [math]::Max(32, $MaxMemoryMB) * 1MB
     $scannedBytes = 0L
+    $nextProgressBytes = 0L
     $address = [IntPtr]::Zero
     $mbi = New-Object XmaMem+MEMORY_BASIC_INFORMATION
     $mbiSize = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf([type]([XmaMem+MEMORY_BASIC_INFORMATION]))
     $hitMap = @{}
+    $activity = if ([string]::IsNullOrWhiteSpace($ProgressActivity)) { "Memory strings scan PID $ProcessId" } else { $ProgressActivity }
 
     try {
         while ($scannedBytes -lt $maxBytes) {
@@ -744,6 +864,12 @@ function Search-XmaProcessMemory {
                 }
             }
 
+            if ($ShowProgress -and $ProgressId -gt 0 -and $scannedBytes -ge $nextProgressBytes) {
+                $status = "{0}MB / {1}MB scanned" -f [math]::Round(($scannedBytes / 1MB), 1), [math]::Round(($maxBytes / 1MB), 0)
+                Write-XmaProgress -Id $ProgressId -Activity $activity -Status $status -Current $scannedBytes -Total $maxBytes
+                $nextProgressBytes = $scannedBytes + 4MB
+            }
+
             $nextAddress = $mbi.BaseAddress.ToInt64() + $regionSize
             if ($nextAddress -le $address.ToInt64()) {
                 break
@@ -758,6 +884,9 @@ function Search-XmaProcessMemory {
         }
     } finally {
         [void][XmaMem]::CloseHandle($handle)
+        if ($ShowProgress -and $ProgressId -gt 0) {
+            Complete-XmaProgress -Id $ProgressId -Activity $activity
+        }
     }
 
     [pscustomobject]@{
@@ -808,6 +937,7 @@ function Write-XmaStatusList {
     Write-Host ""
 }
 
+Disable-XmaConsoleQuickEdit
 Write-XmaBanner
 $resolvedPath = Resolve-XmaPath
 $target = Get-Item -LiteralPath $resolvedPath -ErrorAction Stop
@@ -830,7 +960,7 @@ if (-not $Quiet) {
 
 $hiddenReport = @()
 if ($target.PSIsContainer) {
-    $hiddenReport = @(Get-XmaHiddenJarReport -FolderPath $target.FullName)
+    $hiddenReport = @(Get-XmaHiddenJarReport -FolderPath $target.FullName -ShowProgress:(-not $Quiet))
     if (-not $Quiet) {
         if (@($hiddenReport).Count -gt 0) {
             $label = if ($RevealHidden) { "Hidden/system jars found and revealed" } else { "Hidden/system jars found" }
@@ -853,15 +983,14 @@ $index = 0
 foreach ($jar in $jarFiles) {
     $index++
     if (-not $Quiet) {
-        $pct = [int](($index / [double]$total) * 100)
-        Write-Progress -Activity "Scanning mods" -Status "[$index/$total] $($jar.Name)" -PercentComplete $pct
+        Write-XmaProgress -Id $script:ProgressIds.Mods -Activity "Mod jar scan" -Status "[$index/$total] $($jar.Name)" -Current $index -Total $total
         Write-Host ("[{0}/{1}] Scanning {2}" -f $index, $total, $jar.Name) -ForegroundColor DarkCyan
     }
 
     $reports.Add((Measure-XmaJar -JarPath $jar.FullName))
 }
 if (-not $Quiet) {
-    Write-Progress -Activity "Scanning mods" -Completed
+    Complete-XmaProgress -Id $script:ProgressIds.Mods -Activity "Mod jar scan"
     Write-Host ""
 }
 
@@ -874,7 +1003,7 @@ if (-not $SkipRuntimeScan -or -not $SkipMemoryScan) {
 }
 
 if (-not $SkipRuntimeScan) {
-    $runtimeFindings = @(Measure-XmaRuntimeInjection -JavaProcesses $javaProcesses)
+    $runtimeFindings = @(Measure-XmaRuntimeInjection -JavaProcesses $javaProcesses -ShowProgress:(-not $Quiet))
 }
 
 if (-not $SkipMemoryScan) {
@@ -890,11 +1019,19 @@ if (-not $SkipMemoryScan) {
         $memoryTargets = @($javaProcesses)
     }
 
+    $memoryTargetTotal = @($memoryTargets).Count
+    $memoryTargetIndex = 0
     foreach ($proc in $memoryTargets) {
+        $memoryTargetIndex++
         if (-not $Quiet) {
+            Write-XmaProgress -Id $script:ProgressIds.MemoryTargets -Activity "Memory target scan" -Status "[$memoryTargetIndex/$memoryTargetTotal] PID $($proc.ProcessId) ($($proc.Name))" -Current $memoryTargetIndex -Total $memoryTargetTotal
             Write-Host "Memory scan: PID $($proc.ProcessId) ($($proc.Name))" -ForegroundColor DarkYellow
         }
-        $memoryResults += @(Search-XmaProcessMemory -ProcessId $proc.ProcessId -MaxMemoryMB $MemoryScanMB)
+        $memoryResults += @(Search-XmaProcessMemory -ProcessId $proc.ProcessId -MaxMemoryMB $MemoryScanMB -ShowProgress:(-not $Quiet) -ProgressId $script:ProgressIds.MemoryBytes -ProgressActivity "Memory strings PID $($proc.ProcessId)")
+    }
+
+    if (-not $Quiet) {
+        Complete-XmaProgress -Id $script:ProgressIds.MemoryTargets -Activity "Memory target scan"
     }
 }
 
