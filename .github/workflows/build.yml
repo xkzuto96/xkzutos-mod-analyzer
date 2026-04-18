@@ -1,0 +1,30 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell module
+        shell: pwsh
+        run: Install-Module ps2exe -Scope CurrentUser -Force
+
+      - name: Build release
+        shell: pwsh
+        run: .\build-release.ps1
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: xkzutos-mod-analyzer
+          path: |
+            dist\*.zip
+            dist\*.exe
