@@ -97,6 +97,10 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path
   - `a.class`, `b.class`, high counts of single-letter class names
 - Hidden/system jar attributes in the target mods folder
 - JVM runtime injection argument patterns (prioritizes likely Minecraft java processes)
+- Runtime session check:
+  - shows Java process uptime/start time
+  - flags jars edited while Minecraft Java was actively running
+  - notes that exact before/after content diff needs a baseline snapshot
 - Java memory string hits for known cheat identifiers (Mapped + Private memory scan with minimum string length 5)
 - Mod hash verification via Modrinth and Megabase
 

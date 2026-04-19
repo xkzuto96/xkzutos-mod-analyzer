@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.4"
+    Version = "2.0.5"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -113,6 +113,7 @@ $script:Config = @{
         [pscustomobject]@{ Label = "Encoded injection symbols"; Pattern = "(?i)(%3B|%26%26|%7C%7C|%7C|%60|%24|%3C|%3E)" }
     )
     LegitAgentHints = @("jmxremote", "jacoco", "newrelic", "jrebel", "yjp", "theseus")
+    RuntimeEditGraceSeconds = 3
 }
 
 $script:ModTokenPatterns = @()
@@ -255,6 +256,98 @@ function Write-XmaSummaryLine {
     $pct = [math]::Round(($Count / [double]$safeTotal) * 100, 1)
     $line = "{0,-18} {1,4}/{2,-4} ({3,5}%)" -f ($Label + ":"), $Count, $Total, $pct
     Write-Host $line -ForegroundColor $Color
+}
+
+function Format-XmaDuration {
+    param([timespan]$Span)
+
+    if ($Span.TotalSeconds -lt 0) {
+        $Span = [timespan]::Zero
+    }
+
+    $hours = [int][math]::Floor($Span.TotalHours)
+    return "{0:00}:{1:00}:{2:00}" -f $hours, $Span.Minutes, $Span.Seconds
+}
+
+function Get-XmaRuntimeWindowInfo {
+    param(
+        [object[]]$RuntimeTargets,
+        [datetime]$WindowEndUtc
+    )
+
+    $targetsWithStart = @($RuntimeTargets | Where-Object { $_.StartTimeUtc -is [datetime] })
+    if ($targetsWithStart.Count -eq 0) {
+        return [pscustomobject]@{
+            HasWindow = $false
+            WindowStartUtc = $null
+            WindowEndUtc = $WindowEndUtc
+            TargetCount = 0
+        }
+    }
+
+    $windowStartUtc = ($targetsWithStart | Measure-Object -Property StartTimeUtc -Minimum).Minimum
+    return [pscustomobject]@{
+        HasWindow = $true
+        WindowStartUtc = $windowStartUtc
+        WindowEndUtc = $WindowEndUtc
+        TargetCount = $targetsWithStart.Count
+    }
+}
+
+function Apply-XmaRuntimeEditFlags {
+    param(
+        [object[]]$Reports,
+        [object]$RuntimeWindowInfo,
+        [int]$GraceSeconds = 3
+    )
+
+    $flagged = New-Object System.Collections.Generic.List[object]
+    if (-not $RuntimeWindowInfo -or -not $RuntimeWindowInfo.HasWindow) {
+        return @($flagged.ToArray())
+    }
+
+    $startUtc = $RuntimeWindowInfo.WindowStartUtc.AddSeconds(-1 * [Math]::Max(0, $GraceSeconds))
+    $endUtc = $RuntimeWindowInfo.WindowEndUtc.AddSeconds([Math]::Max(0, $GraceSeconds))
+
+    foreach ($r in $Reports) {
+        $lastWriteUtc = $null
+        try {
+            $lastWriteUtc = (Get-Item -LiteralPath $r.FilePath -Force -ErrorAction Stop).LastWriteTimeUtc
+        } catch {
+            continue
+        }
+
+        if (-not ($lastWriteUtc -is [datetime])) {
+            continue
+        }
+
+        if ($lastWriteUtc -lt $startUtc -or $lastWriteUtc -gt $endUtc) {
+            continue
+        }
+
+        $startLocal = $RuntimeWindowInfo.WindowStartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+        $endLocal = $RuntimeWindowInfo.WindowEndUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+        $editLocal = $lastWriteUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+        $reasonA = "Jar edit time overlaps active Java runtime window ($startLocal -> $endLocal, edited: $editLocal)."
+        $reasonB = "Exact content diff is unavailable without a baseline snapshot from before launch."
+
+        $existingReasons = @($r.Reasons)
+        $existingReasons += $reasonA
+        $existingReasons += $reasonB
+        $r.Reasons = @($existingReasons | Select-Object -Unique)
+
+        if ($r.Status -eq "Verified") {
+            $r.Status = "Review (Verified)"
+        } elseif ($r.Status -eq "Unknown") {
+            $r.Status = "Review"
+        }
+
+        $r | Add-Member -NotePropertyName EditedDuringRuntime -NotePropertyValue $true -Force
+        $r | Add-Member -NotePropertyName LastWriteTimeLocal -NotePropertyValue $editLocal -Force
+        $flagged.Add($r)
+    }
+
+    return @($flagged.ToArray())
 }
 
 function Write-XmaBanner {
@@ -694,11 +787,32 @@ function Measure-XmaJar {
 function Get-XmaJavaProcesses {
     $processes = @(Get-CimInstance Win32_Process -Filter "name = 'javaw.exe' OR name = 'java.exe'" -ErrorAction SilentlyContinue)
     $rows = foreach ($p in $processes) {
+        $startTime = $null
+        $startTimeUtc = $null
+        try {
+            $liveProc = Get-Process -Id ([int]$p.ProcessId) -ErrorAction SilentlyContinue
+            if ($liveProc -and $liveProc.StartTime) {
+                $startTime = [datetime]$liveProc.StartTime
+                $startTimeUtc = $startTime.ToUniversalTime()
+            }
+        } catch {
+        }
+
+        try {
+            if (-not $startTime -and -not [string]::IsNullOrWhiteSpace([string]$p.CreationDate)) {
+                $startTime = [System.Management.ManagementDateTimeConverter]::ToDateTime([string]$p.CreationDate)
+                $startTimeUtc = $startTime.ToUniversalTime()
+            }
+        } catch {
+        }
+
         [pscustomobject]@{
             ProcessId = [int]$p.ProcessId
             Name = [string]$p.Name
             CommandLine = [string]$p.CommandLine
             ExecutablePath = [string]$p.ExecutablePath
+            StartTimeLocal = $startTime
+            StartTimeUtc = $startTimeUtc
         }
     }
     return @($rows)
@@ -1052,6 +1166,7 @@ if ($jarFiles.Count -eq 0) {
 $reports = New-Object System.Collections.Generic.List[object]
 $total = $jarFiles.Count
 $index = 0
+$scanStartedAtUtc = [datetime]::UtcNow
 foreach ($jar in $jarFiles) {
     $index++
     if (-not $Quiet) {
@@ -1085,6 +1200,7 @@ foreach ($jar in $jarFiles) {
         })
     }
 }
+$scanCompletedAtUtc = [datetime]::UtcNow
 if (-not $Quiet) {
     Complete-XmaProgress -Id $script:ProgressIds.Mods -Activity "Mod jar scan"
     Write-Host ""
@@ -1094,17 +1210,23 @@ $javaProcesses = @()
 $runtimeTargets = @()
 $runtimeFindings = @()
 $memoryResults = @()
+$runtimeWindowInfo = $null
+$runtimeEditedReports = @()
 
-if (-not $SkipRuntimeScan -or -not $SkipMemoryScan) {
-    $javaProcesses = @(Get-XmaJavaProcesses)
+$javaProcesses = @(Get-XmaJavaProcesses)
+$runtimeTargets = @(Get-XmaLikelyMinecraftJavaTargets -JavaProcesses $javaProcesses)
+if ($runtimeTargets.Count -eq 0) {
+    $runtimeTargets = @(Get-XmaLikelyMinecraftJavaTargets -JavaProcesses $javaProcesses -AllowJavaExeFallback)
+}
+$runtimeWindowInfo = Get-XmaRuntimeWindowInfo -RuntimeTargets $runtimeTargets -WindowEndUtc $scanCompletedAtUtc
+
+if ($target.PSIsContainer) {
+    $runtimeEditedReports = @(Apply-XmaRuntimeEditFlags -Reports @($reports.ToArray()) -RuntimeWindowInfo $runtimeWindowInfo -GraceSeconds $script:Config.RuntimeEditGraceSeconds)
 }
 
 if (-not $SkipRuntimeScan) {
-    $runtimeTargets = @(Get-XmaLikelyMinecraftJavaTargets -JavaProcesses $javaProcesses -AllowJavaExeFallback)
     if (-not $Quiet) {
         Write-XmaSection -Title "JVM Runtime Scan" -Color DarkYellow
-        Write-Host "Java processes detected: $(@($javaProcesses).Count)" -ForegroundColor Gray
-        Write-Host "Runtime targets: $(@($runtimeTargets).Count)" -ForegroundColor Gray
     }
     $runtimeFindings = @(Measure-XmaRuntimeInjection -JavaProcesses $runtimeTargets -ShowProgress:(-not $Quiet))
 }
@@ -1135,6 +1257,45 @@ if (-not $SkipMemoryScan) {
 $reportArray = @($reports.ToArray())
 $summary = Get-XmaSummaryBucket -Reports $reportArray
 $totalMods = @($reportArray).Count
+
+if (-not $Quiet) {
+    Write-XmaSection -Title "Runtime Session + Edit-Time Check" -Color DarkYellow
+    Write-Host "Java processes detected: $(@($javaProcesses).Count)" -ForegroundColor Gray
+    Write-Host "Minecraft-like runtime targets: $(@($runtimeTargets).Count)" -ForegroundColor Gray
+
+    foreach ($proc in @($runtimeTargets | Sort-Object ProcessId)) {
+        $startText = "unknown"
+        $uptimeText = "unknown"
+        if ($proc.StartTimeUtc -is [datetime]) {
+            $startText = $proc.StartTimeUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+            $uptimeText = Format-XmaDuration -Span ($scanCompletedAtUtc - $proc.StartTimeUtc)
+        }
+        Write-Host ("  - PID {0} ({1}) started {2}, uptime {3}" -f $proc.ProcessId, $proc.Name, $startText, $uptimeText) -ForegroundColor Gray
+    }
+
+    if ($runtimeWindowInfo -and $runtimeWindowInfo.HasWindow) {
+        $windowStartText = $runtimeWindowInfo.WindowStartUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+        $windowEndText = $runtimeWindowInfo.WindowEndUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+        Write-Host "Runtime window: $windowStartText -> $windowEndText" -ForegroundColor Gray
+    } else {
+        Write-Host "Runtime window: unavailable (no start time found)." -ForegroundColor DarkGray
+    }
+
+    if ($target.PSIsContainer) {
+        if ($runtimeEditedReports.Count -gt 0) {
+            Write-Host "Mods edited during active runtime: $($runtimeEditedReports.Count)" -ForegroundColor Red
+            foreach ($rr in @($runtimeEditedReports | Sort-Object FileName)) {
+                $editText = if ($rr.PSObject.Properties.Name -contains "LastWriteTimeLocal") { [string]$rr.LastWriteTimeLocal } else { "unknown" }
+                Write-Host ("  - {0} (edited: {1})" -f $rr.FileName, $editText) -ForegroundColor DarkYellow
+            }
+        } elseif ($runtimeWindowInfo -and $runtimeWindowInfo.HasWindow) {
+            Write-Host "Mods edited during active runtime: 0" -ForegroundColor Green
+        } else {
+            Write-Host "Mods edited during active runtime: skipped (no runtime window)." -ForegroundColor DarkGray
+        }
+    }
+    Write-Host ""
+}
 
 Write-XmaSection -Title "Summary" -Color Cyan
 Write-XmaSummaryLine -Label "Verified" -Count $summary['Verified'] -Total $totalMods -Color Green
