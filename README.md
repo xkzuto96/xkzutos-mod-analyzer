@@ -101,6 +101,11 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path
   - shows Java process uptime/start time
   - flags jars edited while Minecraft Java was actively running
   - notes that exact before/after content diff needs a baseline snapshot
+- JVM argument injection findings now include:
+  - matched argument position in the command line
+  - the full matched argument text
+  - resolved jar paths when present
+  - automatic scan/flagging of referenced injected jars
 - Java memory string hits for known cheat identifiers (Mapped + Private memory scan with minimum string length 5)
 - Mod hash verification via Modrinth and Megabase
 

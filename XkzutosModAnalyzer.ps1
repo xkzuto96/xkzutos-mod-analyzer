@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.6"
+    Version = "2.0.7"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -392,6 +392,157 @@ function Apply-XmaRuntimeEditFlags {
     }
 
     return @($flagged.ToArray())
+}
+
+function Get-XmaCommandTokens {
+    param([string]$CommandLine)
+
+    if ([string]::IsNullOrWhiteSpace($CommandLine)) {
+        return @()
+    }
+
+    $tokens = New-Object System.Collections.Generic.List[object]
+    $matches = [regex]::Matches($CommandLine, '"[^"]*"|''[^'']*''|\S+')
+    foreach ($m in $matches) {
+        $tokens.Add([pscustomobject]@{
+            Text = $m.Value
+            Start = $m.Index
+            End = ($m.Index + $m.Length - 1)
+        })
+    }
+
+    return @($tokens.ToArray())
+}
+
+function Get-XmaTokenAtPosition {
+    param(
+        [object[]]$Tokens,
+        [int]$Position
+    )
+
+    foreach ($token in @($Tokens)) {
+        if ($Position -ge $token.Start -and $Position -le $token.End) {
+            return $token
+        }
+    }
+
+    return $null
+}
+
+function Get-XmaReferencedJarPaths {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return @()
+    }
+
+    $results = New-Object System.Collections.Generic.List[string]
+    $patterns = @(
+        '(?i)"([A-Z]:\\[^"]+\.(?:jar|zip))"',
+        "(?i)'([A-Z]:\\[^']+\.(?:jar|zip))'",
+        '(?i)([A-Z]:\\[^"'';\s]+\.(?:jar|zip))'
+    )
+
+    foreach ($pattern in $patterns) {
+        $matches = [regex]::Matches($Text, $pattern)
+        foreach ($m in $matches) {
+            $candidate = if ($m.Groups.Count -gt 1) { $m.Groups[1].Value } else { $m.Value }
+            if ([string]::IsNullOrWhiteSpace($candidate)) {
+                continue
+            }
+
+            $normalized = $candidate.Trim('"').Trim("'")
+            if (Test-Path -LiteralPath $normalized) {
+                try {
+                    $normalized = (Resolve-Path -LiteralPath $normalized -ErrorAction Stop).Path
+                } catch {
+                }
+            }
+            $results.Add($normalized)
+        }
+    }
+
+    return @($results | Select-Object -Unique)
+}
+
+function Apply-XmaRuntimeInjectedJarFlags {
+    param(
+        [object[]]$Reports,
+        [object[]]$RuntimeFindings
+    )
+
+    $existingByPath = @{}
+    foreach ($report in @($Reports)) {
+        $existingByPath[$report.FilePath] = $report
+    }
+
+    $addedReports = New-Object System.Collections.Generic.List[object]
+    $annotatedReports = New-Object System.Collections.Generic.List[object]
+    $allReferencedPaths = @(
+        $RuntimeFindings |
+            ForEach-Object { @($_.ReferencedJarPaths) } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Select-Object -Unique
+    )
+
+    foreach ($path in $allReferencedPaths) {
+        $reason = "Referenced by JVM argument injection."
+        if ($existingByPath.ContainsKey($path)) {
+            $report = $existingByPath[$path]
+            $report.Reasons = @(@($report.Reasons) + $reason | Select-Object -Unique)
+            if ($report.Status -eq "Verified") {
+                $report.Status = "Review (Verified)"
+            } elseif ($report.Status -eq "Unknown") {
+                $report.Status = "Review"
+            }
+            $annotatedReports.Add($report)
+            continue
+        }
+
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+
+        try {
+            attrib -h -s "$path" 2>$null | Out-Null
+        } catch {
+        }
+
+        try {
+            $report = Measure-XmaJar -JarPath $path
+            $report.Reasons = @(@($report.Reasons) + $reason | Select-Object -Unique)
+            if ($report.Status -eq "Verified") {
+                $report.Status = "Review (Verified)"
+            } elseif ($report.Status -eq "Unknown") {
+                $report.Status = "Review"
+            }
+            $addedReports.Add($report)
+            $existingByPath[$path] = $report
+        } catch {
+            $addedReports.Add([pscustomobject]@{
+                FileName = [System.IO.Path]::GetFileName($path)
+                FilePath = $path
+                SizeKB = 0
+                Sha1 = ""
+                Sha256 = ""
+                Metadata = $null
+                Verification = $null
+                DownloadSource = Get-XmaDownloadSource -Path $path
+                TokenHits = @()
+                SingleLetterClassCount = 0
+                ContainsAClass = $false
+                ContainsBClass = $false
+                Reasons = @($reason, "Injected jar scan error: $($_.Exception.Message)")
+                Status = "Review"
+            })
+        }
+    }
+
+    return [pscustomobject]@{
+        AddedReports = @($addedReports.ToArray())
+        AnnotatedReports = @($annotatedReports.ToArray())
+        ReferencedJarPaths = $allReferencedPaths
+    }
 }
 
 function Write-XmaBanner {
@@ -908,14 +1059,30 @@ function Measure-XmaRuntimeInjection {
         }
 
         $findings = New-Object System.Collections.Generic.List[string]
+        $findingDetails = New-Object System.Collections.Generic.List[object]
+        $commandTokens = @(Get-XmaCommandTokens -CommandLine $cmd)
         foreach ($rule in $script:Config.RuntimeInjectionPatterns) {
-            if ($cmd -match $rule.Pattern) {
+            $matches = [regex]::Matches($cmd, $rule.Pattern)
+            if ($matches.Count -gt 0) {
                 $findings.Add($rule.Label)
+                foreach ($m in $matches) {
+                    $token = Get-XmaTokenAtPosition -Tokens $commandTokens -Position $m.Index
+                    $argumentText = if ($token) { [string]$token.Text } else { [string]$m.Value }
+                    $referencedPaths = @(Get-XmaReferencedJarPaths -Text $argumentText)
+                    $findingDetails.Add([pscustomobject]@{
+                        Label = $rule.Label
+                        Position = [int]$m.Index
+                        Argument = $argumentText
+                        ReferencedPaths = $referencedPaths
+                    })
+                }
             }
         }
 
         $agentMatches = [regex]::Matches($cmd, '(?i)-javaagent:([^\s"]+|"[^"]+")')
         foreach ($m in $agentMatches) {
+            $token = Get-XmaTokenAtPosition -Tokens $commandTokens -Position $m.Index
+            $argumentText = if ($token) { [string]$token.Text } else { [string]$m.Value }
             $agentPath = $m.Groups[1].Value.Trim('"').Trim("'")
             $agentName = [System.IO.Path]::GetFileName($agentPath)
             $lowerName = $agentName.ToLowerInvariant()
@@ -928,16 +1095,30 @@ function Measure-XmaRuntimeInjection {
             }
             if (-not $isLegit) {
                 $findings.Add("Untrusted javaagent: $agentName")
+                $findingDetails.Add([pscustomobject]@{
+                    Label = "Untrusted javaagent: $agentName"
+                    Position = [int]$m.Index
+                    Argument = $argumentText
+                    ReferencedPaths = @($agentPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                })
             }
         }
 
         $findingsUnique = @($findings | Select-Object -Unique)
         if ($findingsUnique.Count -gt 0) {
+            $allReferencedPaths = @(
+                $findingDetails |
+                    ForEach-Object { @($_.ReferencedPaths) } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Select-Object -Unique
+            )
             $results.Add([pscustomobject]@{
                 ProcessId = $proc.ProcessId
                 Name = $proc.Name
                 CommandLine = $cmd
                 Findings = $findingsUnique
+                FindingDetails = @($findingDetails.ToArray())
+                ReferencedJarPaths = $allReferencedPaths
             })
         }
     }
@@ -1256,6 +1437,7 @@ $runtimeFindings = @()
 $memoryResults = @()
 $runtimeWindowInfo = $null
 $runtimeEditedReports = @()
+$runtimeInjectionJarReport = $null
 
 $javaProcesses = @(Get-XmaJavaProcesses)
 $runtimeTargets = @(Get-XmaLikelyMinecraftJavaTargets -JavaProcesses $javaProcesses)
@@ -1273,6 +1455,10 @@ if (-not $SkipRuntimeScan) {
         Write-XmaSection -Title "JVM Runtime Scan" -Color DarkYellow
     }
     $runtimeFindings = @(Measure-XmaRuntimeInjection -JavaProcesses $runtimeTargets -ShowProgress:(-not $Quiet))
+    $runtimeInjectionJarReport = Apply-XmaRuntimeInjectedJarFlags -Reports @($reports.ToArray()) -RuntimeFindings $runtimeFindings
+    foreach ($addedReport in @($runtimeInjectionJarReport.AddedReports)) {
+        $reports.Add($addedReport)
+    }
 }
 
 if (-not $SkipMemoryScan) {
@@ -1384,9 +1570,20 @@ if (@($runtimeFindings).Count -gt 0) {
     foreach ($rf in $runtimeFindings) {
         Write-Host ""
         Write-Host "PID $($rf.ProcessId) ($($rf.Name))" -ForegroundColor White
-        foreach ($f in $rf.Findings) {
-            Write-Host "  - $f" -ForegroundColor Yellow
+        foreach ($detail in @($rf.FindingDetails)) {
+            Write-Host "  - $($detail.Label)" -ForegroundColor Yellow
+            Write-Host "      position: $($detail.Position)" -ForegroundColor DarkGray
+            Write-Host "      argument: $($detail.Argument)" -ForegroundColor DarkGray
+            foreach ($path in @($detail.ReferencedPaths | Select-Object -Unique)) {
+                Write-Host "      jar: $path" -ForegroundColor DarkYellow
+            }
         }
+    }
+    if ($runtimeInjectionJarReport) {
+        $addedCount = @($runtimeInjectionJarReport.AddedReports).Count
+        $annotatedCount = @($runtimeInjectionJarReport.AnnotatedReports).Count
+        Write-Host ""
+        Write-Host "Runtime-injected jar scan results: added=$addedCount, annotated=$annotatedCount" -ForegroundColor Magenta
     }
     Write-Host ""
 } elseif (-not $SkipRuntimeScan) {
