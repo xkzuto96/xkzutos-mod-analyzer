@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.7"
+    Version = "2.0.10"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -40,6 +40,80 @@ $script:Config = @{
     ModCheatTokens = @(
         "autoclicker",
         "aimassist",
+        "aim assist",
+        "autocrystal",
+        "auto crystal",
+        "autohitcrystal",
+        "autoanchor",
+        "anchor macro",
+        "anchortweaks",
+        "doubleanchor",
+        "safeanchor",
+        "airanchor",
+        "autototem",
+        "auto totem",
+        "inventorytotem",
+        "hovertotem",
+        "legittotem",
+        "autopot",
+        "autoarmor",
+        "autoeat",
+        "automine",
+        "automace",
+        "maceswap",
+        "spearswap",
+        "autodoublehand",
+        "shielddisabler",
+        "shieldbreaker",
+        "triggerbot",
+        "silentaim",
+        "silent rotations",
+        "fakelag",
+        "pingspoof",
+        "fakeinv",
+        "webmacro",
+        "authbypass",
+        "obfuscatedauth",
+        "licensecheckmixin",
+        "clientplayerinteractionmanageraccessor",
+        "clientplayerentitymixim",
+        "itemexploit",
+        "invsee",
+        "basefinder",
+        "packspoof",
+        "antiknockback",
+        "lagreach",
+        "jumpreset",
+        "axespam",
+        "autofirework",
+        "elytraswap",
+        "fastxp",
+        "fastexp",
+        "nojumpdelay",
+        "noclip",
+        "freecam",
+        "freezeplayer",
+        "autobreach",
+        "keypearl",
+        "lootyeeter",
+        "walksyoptimizer",
+        "walskyoptimizer",
+        "walksycrystaloptimizermod",
+        "dqrkis",
+        "argon",
+        "xenon",
+        "catlean",
+        "gypsy",
+        "hellion",
+        "dev.krypton",
+        "dev.gambleclient",
+        "org.chainlibs.module.impl.modules.crystal",
+        "org.chainlibs.module.impl.modules.blatant",
+        "jnativehook",
+        "phantom-refmap",
+        "ghost client",
+        "cracked client",
+        "cracked",
         "reach",
         "velocity",
         "killaura",
@@ -49,15 +123,81 @@ $script:Config = @{
         "esp",
         "xray",
         "selfdestruct",
+        "self destruct",
         "bypass",
         "exploit"
     )
     TokenWeights = @{
         autoclicker = 3
         aimassist = 3
+        "aim assist" = 3
+        autocrystal = 3
+        "auto crystal" = 2
+        autohitcrystal = 3
+        autoanchor = 3
+        "anchor macro" = 2
+        doubleanchor = 2
+        safeanchor = 2
+        autototem = 3
+        "auto totem" = 3
+        inventorytotem = 3
+        hovertotem = 3
+        legittotem = 2
+        autopot = 2
+        autoarmor = 2
+        automace = 2
+        maceswap = 2
+        spearswap = 2
+        shielddisabler = 3
+        shieldbreaker = 3
+        triggerbot = 3
+        silentaim = 3
+        pingspoof = 2
+        fakeinv = 2
+        fakelag = 2
+        webmacro = 2
+        authbypass = 4
+        obfuscatedauth = 4
+        licensecheckmixin = 4
+        itemexploit = 3
+        basefinder = 2
+        packspoof = 2
+        antiknockback = 2
+        lagreach = 2
+        jumpreset = 2
+        axespam = 2
+        autofirework = 2
+        elytraswap = 2
+        fastxp = 2
+        fastexp = 2
+        nojumpdelay = 2
+        noclip = 2
+        freecam = 2
+        freezeplayer = 2
+        autobreach = 2
+        lootyeeter = 2
+        walksyoptimizer = 4
+        walskyoptimizer = 4
+        walksycrystaloptimizermod = 4
+        dqrkis = 4
+        argon = 3
+        xenon = 3
+        catlean = 3
+        gypsy = 3
+        hellion = 3
+        "dev.krypton" = 4
+        "dev.gambleclient" = 4
+        "org.chainlibs.module.impl.modules.crystal" = 4
+        "org.chainlibs.module.impl.modules.blatant" = 4
+        jnativehook = 3
+        "phantom-refmap" = 3
+        "ghost client" = 4
+        "cracked client" = 4
+        cracked = 2
         killaura = 3
         xray = 3
         selfdestruct = 3
+        "self destruct" = 3
         bypass = 3
         exploit = 3
         scaffold = 2
@@ -67,6 +207,25 @@ $script:Config = @{
         velocity = 1
         speed = 1
     }
+    CriticalCheatTokens = @(
+        "dqrkis",
+        "walksyoptimizer",
+        "walskyoptimizer",
+        "walksycrystaloptimizermod",
+        "authbypass",
+        "obfuscatedauth",
+        "licensecheckmixin",
+        "dev.krypton",
+        "dev.gambleclient",
+        "org.chainlibs.module.impl.modules.crystal",
+        "org.chainlibs.module.impl.modules.blatant",
+        "ghost client",
+        "cracked client",
+        "catlean",
+        "xenon",
+        "gypsy",
+        "hellion"
+    )
     MemoryFilterStrings = @(
         "Doomsday",
         "DoomsdayClient",
@@ -156,7 +315,85 @@ $script:Config = @{
         [pscustomobject]@{ Label = "Class path override"; Pattern = "(?i)-Djava\.class\.path=" },
         [pscustomobject]@{ Label = "Encoded injection symbols"; Pattern = "(?i)(%3B|%26%26|%7C%7C|%7C|%60|%24|%3C|%3E)" }
     )
-    LegitAgentHints = @("jmxremote", "jacoco", "newrelic", "jrebel", "yjp", "theseus")
+    LegitAgentHints = @(
+        "jmxremote",
+        "jacoco",
+        "newrelic",
+        "jrebel",
+        "yjp",
+        "theseus",
+        "lombok",
+        "byte-buddy",
+        "idea_rt",
+        "intellij",
+        "jetbrains",
+        "visualvm",
+        "async-profiler",
+        "hprof",
+        "flightrecorder",
+        "jfr"
+    )
+    LegitAgentPathHints = @(
+        "\\projectlombok\\",
+        "\\.gradle\\caches\\",
+        "\\m2\\repository\\",
+        "\\jetbrains\\",
+        "\\intellij",
+        "\\eclipse\\",
+        "\\jdk\\",
+        "\\java\\",
+        "\\microsoft\\jdk\\",
+        "\\temurin\\",
+        "\\modrinthapp\\",
+        "\\prismlauncher\\",
+        "\\multimc\\",
+        "\\lunarclient\\",
+        "\\badlion\\",
+        "\\curseforge\\",
+        "\\.minecraft\\libraries\\"
+    )
+    SuspiciousAgentHints = @(
+        "inject",
+        "bypass",
+        "cheat",
+        "ghost",
+        "clicker",
+        "aim",
+        "killaura",
+        "triggerbot",
+        "reach",
+        "velocity",
+        "xray",
+        "selfdestruct",
+        "dqrkis",
+        "argon",
+        "walksy",
+        "walsky",
+        "catlean",
+        "xenon",
+        "gypsy"
+    )
+    RuntimeHighRiskLabels = @(
+        "Native agent injection",
+        "Agent library injection",
+        "Boot classpath injection",
+        "Fabric addMods injection",
+        "Fabric loadMods injection",
+        "Fabric remapClasspathFile injection",
+        "Fabric custom mod list injection",
+        "Fabric resolve modFiles override",
+        "Fabric loader entrypoints injection",
+        "Fabric language providers injection",
+        "Forge addMods injection",
+        "Forge coremod load injection",
+        "Forge coreMods dir override",
+        "Forge modDir override",
+        "Forge modsDirectories override",
+        "FML custom mod list injection",
+        "Forge modList override",
+        "System classloader override",
+        "Encoded injection symbols"
+    )
     RuntimeEditGraceSeconds = 3
 }
 
@@ -313,6 +550,36 @@ function Format-XmaDuration {
     return "{0:00}:{1:00}:{2:00}" -f $hours, $Span.Minutes, $Span.Seconds
 }
 
+function Test-XmaLikelyLauncherModsPath {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    $normalized = ([string]$Path).Trim().Trim('"').Trim("'").ToLowerInvariant()
+    if ($normalized.EndsWith("\\")) {
+        $normalized = $normalized.TrimEnd('\\')
+    }
+
+    $leaf = ""
+    try {
+        $leaf = ([System.IO.Path]::GetFileName($normalized)).ToLowerInvariant()
+    } catch {
+        $leaf = ""
+    }
+
+    if ($leaf -ne "mods") {
+        return $false
+    }
+
+    if ($normalized -match '(?i)\.minecraft|modrinthapp|prismlauncher|multimc|curseforge|lunarclient|badlion|feather|launcher') {
+        return $true
+    }
+
+    return $false
+}
+
 function Get-XmaRuntimeWindowInfo {
     param(
         [object[]]$RuntimeTargets,
@@ -429,6 +696,137 @@ function Get-XmaTokenAtPosition {
     return $null
 }
 
+function Normalize-XmaJarPathCandidate {
+    param([string]$Candidate)
+
+    if ([string]::IsNullOrWhiteSpace($Candidate)) {
+        return ""
+    }
+
+    $normalized = [string]$Candidate
+    $normalized = $normalized.Trim().Trim('"').Trim("'").Trim()
+
+    if ($normalized -match '^[^=]+=(.+)$') {
+        $normalized = $matches[1].Trim()
+    }
+    if ($normalized -match '^(?i)-javaagent:(.+)$') {
+        $normalized = $matches[1].Trim()
+    } elseif ($normalized -match '^(?i)-agentpath:(.+)$') {
+        $normalized = $matches[1].Trim()
+    }
+
+    $normalized = $normalized.Trim().Trim('"').Trim("'").Trim()
+    $normalized = $normalized.TrimEnd(",", ";")
+
+    try {
+        $expanded = [Environment]::ExpandEnvironmentVariables($normalized)
+        if (-not [string]::IsNullOrWhiteSpace($expanded)) {
+            $normalized = $expanded
+        }
+    } catch {
+    }
+
+    try {
+        if ($normalized.Contains("%")) {
+            $decoded = [uri]::UnescapeDataString($normalized)
+            if (-not [string]::IsNullOrWhiteSpace($decoded)) {
+                $normalized = $decoded
+            }
+        }
+    } catch {
+    }
+
+    if ($normalized -match '^(?i)file:(/+)?(.+)$') {
+        $normalized = $matches[2]
+        $normalized = $normalized -replace '/', '\\'
+    }
+
+    $normalized = $normalized -replace '[?#].*$', ''
+    $normalized = $normalized.Trim().Trim('"').Trim("'").Trim()
+
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return ""
+    }
+
+    if ($normalized -notmatch '(?i)\.(jar|zip)$') {
+        return ""
+    }
+
+    return $normalized
+}
+
+function Get-XmaJavaAgentAssessment {
+    param([string]$AgentArgument)
+
+    $agentPath = Normalize-XmaJarPathCandidate -Candidate $AgentArgument
+    if ([string]::IsNullOrWhiteSpace($agentPath)) {
+        $agentPath = ([string]$AgentArgument).Trim().Trim('"').Trim("'")
+    }
+
+    $agentName = [System.IO.Path]::GetFileName($agentPath)
+    $lowerName = ([string]$agentName).ToLowerInvariant()
+    $lowerPath = ([string]$agentPath).ToLowerInvariant()
+
+    $trustedByName = $false
+    foreach ($hint in @($script:Config.LegitAgentHints)) {
+        $hintText = ([string]$hint).ToLowerInvariant()
+        if (-not [string]::IsNullOrWhiteSpace($hintText) -and $lowerName.Contains($hintText)) {
+            $trustedByName = $true
+            break
+        }
+    }
+
+    $trustedByPath = $false
+    foreach ($hint in @($script:Config.LegitAgentPathHints)) {
+        $hintText = ([string]$hint).ToLowerInvariant()
+        if (-not [string]::IsNullOrWhiteSpace($hintText) -and $lowerPath.Contains($hintText)) {
+            $trustedByPath = $true
+            break
+        }
+    }
+
+    $suspiciousByHint = $false
+    foreach ($hint in @($script:Config.SuspiciousAgentHints)) {
+        $hintText = ([string]$hint).ToLowerInvariant()
+        if ([string]::IsNullOrWhiteSpace($hintText)) {
+            continue
+        }
+
+        if ($lowerName.Contains($hintText) -or $lowerPath.Contains($hintText)) {
+            $suspiciousByHint = $true
+            break
+        }
+    }
+
+    $suspiciousByLocation = $false
+    if ($lowerPath.Contains("\\mods\\") -or $lowerPath.Contains("\\versions\\")) {
+        $suspiciousByLocation = $true
+    }
+
+    $riskLevel = "unrecognized"
+    $trustReason = "No trusted hint matched."
+    if ($trustedByName) {
+        $riskLevel = "trusted"
+        $trustReason = "Matched trusted agent name hint."
+    } elseif ($trustedByPath) {
+        $riskLevel = "trusted"
+        $trustReason = "Matched trusted toolchain path hint."
+    } elseif ($suspiciousByHint) {
+        $riskLevel = "suspicious"
+        $trustReason = "Matched suspicious agent hint."
+    } elseif ($suspiciousByLocation) {
+        $riskLevel = "suspicious"
+        $trustReason = "Agent path points to mods/versions location."
+    }
+
+    [pscustomobject]@{
+        AgentName = $agentName
+        AgentPath = $agentPath
+        RiskLevel = $riskLevel
+        TrustReason = $trustReason
+    }
+}
+
 function Get-XmaReferencedJarPaths {
     param([string]$Text)
 
@@ -437,30 +835,57 @@ function Get-XmaReferencedJarPaths {
     }
 
     $results = New-Object System.Collections.Generic.List[string]
+    $candidates = New-Object System.Collections.Generic.List[string]
     $patterns = @(
-        '(?i)"([A-Z]:\\[^"]+\.(?:jar|zip))"',
-        "(?i)'([A-Z]:\\[^']+\.(?:jar|zip))'",
-        '(?i)([A-Z]:\\[^"'';\s]+\.(?:jar|zip))'
+        '(?i)"((?:[A-Z]:\\|\\\\)[^"]+\.(?:jar|zip))"',
+        "(?i)'((?:[A-Z]:\\|\\\\)[^']+\.(?:jar|zip))'",
+        '(?i)((?:[A-Z]:\\|\\\\|\.{1,2}[\\/])[^"''\s,;]+\.(?:jar|zip))'
     )
 
     foreach ($pattern in $patterns) {
         $matches = [regex]::Matches($Text, $pattern)
         foreach ($m in $matches) {
             $candidate = if ($m.Groups.Count -gt 1) { $m.Groups[1].Value } else { $m.Value }
-            if ([string]::IsNullOrWhiteSpace($candidate)) {
-                continue
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                $candidates.Add($candidate)
             }
+        }
+    }
 
-            $normalized = $candidate.Trim('"').Trim("'")
+    foreach ($part in @($Text -split "[,;]")) {
+        if ([string]::IsNullOrWhiteSpace($part)) {
+            continue
+        }
+
+        $trimmed = $part.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            continue
+        }
+
+        if ($trimmed -match '^[^=]+=(.+)$') {
+            $trimmed = $matches[1].Trim()
+        }
+
+        if ($trimmed -match '(?i)\.(jar|zip)') {
+            $candidates.Add($trimmed)
+        }
+    }
+
+    foreach ($candidate in @($candidates | Select-Object -Unique)) {
+        $normalized = Normalize-XmaJarPathCandidate -Candidate $candidate
+        if ([string]::IsNullOrWhiteSpace($normalized)) {
+            continue
+        }
+
             if (Test-Path -LiteralPath $normalized) {
                 try {
                     $normalized = (Resolve-Path -LiteralPath $normalized -ErrorAction Stop).Path
                 } catch {
                 }
             }
+
             $results.Add($normalized)
         }
-    }
 
     return @($results | Select-Object -Unique)
 }
@@ -757,6 +1182,60 @@ function Get-XmaEntryText {
     }
 }
 
+function Get-XmaEntryBytes {
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.Compression.ZipArchiveEntry]$Entry,
+        [int]$MaxBytes = 262144
+    )
+
+    $length = [int][Math]::Min([int64]$Entry.Length, [int64][Math]::Max(0, $MaxBytes))
+    if ($length -le 0) {
+        return @()
+    }
+
+    $stream = $Entry.Open()
+    try {
+        $buffer = New-Object byte[] $length
+        $offset = 0
+        while ($offset -lt $length) {
+            $read = $stream.Read($buffer, $offset, $length - $offset)
+            if ($read -le 0) {
+                break
+            }
+            $offset += $read
+        }
+
+        if ($offset -eq $length) {
+            return $buffer
+        }
+
+        if ($offset -le 0) {
+            return @()
+        }
+
+        $trimmed = New-Object byte[] $offset
+        [Array]::Copy($buffer, 0, $trimmed, 0, $offset)
+        return $trimmed
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+function Convert-XmaTokenMatchText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return ""
+    }
+
+    try {
+        return $Text.Normalize([Text.NormalizationForm]::FormKC)
+    } catch {
+        return $Text
+    }
+}
+
 function Get-XmaPrintableStrings {
     param(
         [byte[]]$Bytes,
@@ -788,9 +1267,10 @@ function Find-XmaTokenHits {
         return @()
     }
 
+    $normalizedText = Convert-XmaTokenMatchText -Text $Text
     $hits = New-Object System.Collections.Generic.List[string]
     foreach ($tp in $script:ModTokenPatterns) {
-        if ($tp.Regex.IsMatch($Text)) {
+        if ($tp.Regex.IsMatch($normalizedText)) {
             $hits.Add($tp.Token)
         }
     }
@@ -878,9 +1358,48 @@ function Measure-XmaJar {
         $entryNames = @($zip.Entries | Select-Object -ExpandProperty FullName)
         $classEntries = @($zip.Entries | Where-Object { $_.FullName -match "(?i)\.class$" })
         $classBaseNames = @($classEntries | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.FullName) })
+        $classPathEntries = @($classEntries | ForEach-Object { ([string]$_.FullName -replace '(?i)\.class$','') })
+
+        $repeatedSegmentClassCount = 0
+        foreach ($classPath in $classPathEntries) {
+            $segments = @(([string]$classPath).Split('/'))
+            if ($segments.Count -eq 0) {
+                continue
+            }
+
+            $seen = @{}
+            $hasRepeatSegment = $false
+            foreach ($segment in $segments) {
+                if ($seen.ContainsKey($segment)) {
+                    $hasRepeatSegment = $true
+                    break
+                }
+                $seen[$segment] = $true
+            }
+
+            if ($hasRepeatSegment) {
+                $repeatedSegmentClassCount++
+            }
+        }
+
+        $repeatedSegmentRatio = 0.0
+        if ($classEntries.Count -gt 0) {
+            $repeatedSegmentRatio = [math]::Round(($repeatedSegmentClassCount / [double]$classEntries.Count), 3)
+        }
 
         $tokenHits = New-Object System.Collections.Generic.List[string]
         $reasonList = New-Object System.Collections.Generic.List[string]
+        $structuralIndicator = 0
+        $strongStructuralIndicator = 0
+
+        $binaryIndicatorCounts = @{
+            SecretKeySpec = 0
+            Cipher = 0
+            Base64 = 0
+            DefineClass = 0
+            UrlClassLoader = 0
+            AgentHooks = 0
+        }
 
         $entryText = ($entryNames -join "`n") + "`n" + $meta.MetadataText
         foreach ($hit in Find-XmaTokenHits -Text $entryText) {
@@ -895,6 +1414,70 @@ function Measure-XmaJar {
             foreach ($hit in Find-XmaTokenHits -Text $text) {
                 $tokenHits.Add($hit)
             }
+        }
+
+        $binaryClassEntries = @($classEntries | Select-Object -First 120)
+        foreach ($entry in $binaryClassEntries) {
+            $bytes = @(Get-XmaEntryBytes -Entry $entry -MaxBytes 262144)
+            if ($bytes.Count -eq 0) {
+                continue
+            }
+
+            $printable = @(Get-XmaPrintableStrings -Bytes $bytes -MinLength 5)
+            if ($printable.Count -eq 0) {
+                continue
+            }
+
+            foreach ($chunk in @($printable | Select-Object -First 220)) {
+                $chunkText = [string]$chunk
+                foreach ($hit in Find-XmaTokenHits -Text $chunk) {
+                    $tokenHits.Add($hit)
+                }
+
+                if ($chunkText -match '(?i)SecretKeySpec') { $binaryIndicatorCounts.SecretKeySpec++ }
+                if ($chunkText -match '(?i)\bCipher\b|javax/crypto/Cipher') { $binaryIndicatorCounts.Cipher++ }
+                if ($chunkText -match '(?i)\bBase64\b|java/util/Base64') { $binaryIndicatorCounts.Base64++ }
+                if ($chunkText -match '(?i)defineClass') { $binaryIndicatorCounts.DefineClass++ }
+                if ($chunkText -match '(?i)URLClassLoader') { $binaryIndicatorCounts.UrlClassLoader++ }
+                if ($chunkText -match '(?i)javaagent|agentmain|premain|instrumentation|java/lang/instrument') { $binaryIndicatorCounts.AgentHooks++ }
+            }
+        }
+
+        $hasCryptoStringHidingPair =
+            (($binaryIndicatorCounts.SecretKeySpec -gt 0 -and $binaryIndicatorCounts.Base64 -gt 0) -or
+             ($binaryIndicatorCounts.Cipher -gt 0 -and $binaryIndicatorCounts.Base64 -gt 0))
+
+        $hasLoaderAndEncodedPayloadSignals =
+            (($binaryIndicatorCounts.DefineClass -gt 0 -or $binaryIndicatorCounts.UrlClassLoader -gt 0) -and
+             ($binaryIndicatorCounts.Base64 -gt 0 -or $binaryIndicatorCounts.SecretKeySpec -gt 0 -or $binaryIndicatorCounts.Cipher -gt 0))
+
+        if ($hasCryptoStringHidingPair -or $hasLoaderAndEncodedPayloadSignals) {
+            $reasonList.Add(
+                "String-hiding/loader markers in class bytes: SecretKeySpec=$($binaryIndicatorCounts.SecretKeySpec), Cipher=$($binaryIndicatorCounts.Cipher), Base64=$($binaryIndicatorCounts.Base64), defineClass=$($binaryIndicatorCounts.DefineClass), URLClassLoader=$($binaryIndicatorCounts.UrlClassLoader), agentHooks=$($binaryIndicatorCounts.AgentHooks)"
+            )
+            $structuralIndicator = 1
+        }
+
+        $hasNamespaceRecursionAnomaly = ($classEntries.Count -ge 120 -and $repeatedSegmentClassCount -ge 10 -and $repeatedSegmentRatio -ge 0.08)
+        if ($classEntries.Count -ge 120 -and $repeatedSegmentClassCount -ge 10 -and $repeatedSegmentRatio -ge 0.08) {
+            $reasonList.Add("Class namespace recursion anomaly: repeated-segment classes=$repeatedSegmentClassCount/$($classEntries.Count) (ratio=$repeatedSegmentRatio).")
+            $structuralIndicator = 1
+        }
+
+        $fileStem = [System.IO.Path]::GetFileNameWithoutExtension($JarPath).ToLowerInvariant()
+        $metaId = ([string]$meta.ModId).Trim().ToLowerInvariant()
+        $metaNameToken = (([string]$meta.Name) -replace '[^a-z0-9]', '').ToLowerInvariant()
+        $nameLooksRandom = $fileStem -match '^[a-z0-9]{3,6}$'
+        $matchesMetaId = (-not [string]::IsNullOrWhiteSpace($metaId)) -and ($fileStem.Contains($metaId))
+        $matchesMetaName = (-not [string]::IsNullOrWhiteSpace($metaNameToken)) -and ($metaNameToken.Contains($fileStem) -or $fileStem.Contains($metaNameToken))
+        if ($nameLooksRandom -and -not $matchesMetaId -and -not $matchesMetaName -and $classEntries.Count -ge 80) {
+            $reasonList.Add("Jar filename/metadata mismatch: file '$fileStem' does not align with declared mod id/name '$($meta.ModId)'/'$($meta.Name)'.")
+            $structuralIndicator = 1
+        }
+
+        if (($hasCryptoStringHidingPair -or $hasLoaderAndEncodedPayloadSignals) -and $hasNamespaceRecursionAnomaly) {
+            $reasonList.Add("Combined hidden-string and namespace-recursion pattern is strongly suspicious.")
+            $strongStructuralIndicator = 1
         }
 
         $tokenHitsUnique = @($tokenHits | Select-Object -Unique | Sort-Object)
@@ -915,6 +1498,23 @@ function Measure-XmaJar {
             $tokenIndicator = 1
         }
 
+        $strongTokenIndicator = 0
+        $criticalTokenHits = @(
+            $tokenHitsUnique |
+                Where-Object {
+                    $script:Config.CriticalCheatTokens -contains $_
+                }
+        )
+        if ($criticalTokenHits.Count -gt 0) {
+            $reasonList.Add("Critical cheat identifiers: $($criticalTokenHits -join ', ')")
+            $strongTokenIndicator = 1
+        }
+
+        if ($tokenScore -ge 6) {
+            $reasonList.Add("High-confidence cheat signature density (score >= 6).")
+            $strongTokenIndicator = 1
+        }
+
         $containsAClass = $false
         $containsBClass = $false
         foreach ($n in $classBaseNames) {
@@ -922,8 +1522,23 @@ function Measure-XmaJar {
             if ($n -ceq "b") { $containsBClass = $true }
         }
         $singleLetterClasses = @($classBaseNames | Where-Object { $_ -match "^[a-zA-Z]$" })
-        if ($containsAClass -or $containsBClass -or $singleLetterClasses.Count -gt 0) {
-            $reasonList.Add("Obfuscation markers: a.class=$containsAClass, b.class=$containsBClass, single-letter classes=$($singleLetterClasses.Count)")
+        $singleLetterPathClasses = @(
+            $classEntries |
+                Where-Object {
+                    ([string]$_.FullName) -match '^(?:[a-zA-Z]/){3,}[a-zA-Z]\.class$'
+                }
+        )
+        $nonAsciiShortClasses = @(
+            $classBaseNames |
+                Where-Object {
+                    ([string]$_) -match '^[^\x00-\x7F]{1,2}$'
+                }
+        )
+
+        if ($containsAClass -or $containsBClass -or $singleLetterClasses.Count -gt 0 -or $singleLetterPathClasses.Count -gt 0 -or $nonAsciiShortClasses.Count -gt 0) {
+            $reasonList.Add(
+                "Obfuscation markers: a.class=$containsAClass, b.class=$containsBClass, single-letter classes=$($singleLetterClasses.Count), nested single-letter paths=$($singleLetterPathClasses.Count), non-ascii short classes=$($nonAsciiShortClasses.Count)"
+            )
         }
 
         $sha1 = Get-XmaFileHashSafe -Path $JarPath -Algorithm "SHA1"
@@ -937,12 +1552,20 @@ function Measure-XmaJar {
         }
 
         $obfuscationIndicator = 0
-        if (($containsAClass -and $containsBClass) -or $singleLetterClasses.Count -ge 12) {
+        if (
+            ($containsAClass -and $containsBClass) -or
+            $singleLetterClasses.Count -ge 12 -or
+            $singleLetterPathClasses.Count -ge 20 -or
+            $nonAsciiShortClasses.Count -ge 5
+        ) {
             $obfuscationIndicator = 1
         }
 
         $indicatorCount = 0
         if ($tokenIndicator -gt 0) { $indicatorCount++ }
+        if ($strongTokenIndicator -gt 0) { $indicatorCount++ }
+        if ($structuralIndicator -gt 0) { $indicatorCount++ }
+        if ($strongStructuralIndicator -gt 0) { $indicatorCount++ }
         if ($obfuscationIndicator -gt 0) { $indicatorCount++ }
 
         $status = "Unknown"
@@ -1060,52 +1683,92 @@ function Measure-XmaRuntimeInjection {
 
         $findings = New-Object System.Collections.Generic.List[string]
         $findingDetails = New-Object System.Collections.Generic.List[object]
+        $informationalFindings = New-Object System.Collections.Generic.List[string]
+        $informationalDetails = New-Object System.Collections.Generic.List[object]
+        $highRiskLabels = @($script:Config.RuntimeHighRiskLabels)
         $commandTokens = @(Get-XmaCommandTokens -CommandLine $cmd)
         foreach ($rule in $script:Config.RuntimeInjectionPatterns) {
             $matches = [regex]::Matches($cmd, $rule.Pattern)
             if ($matches.Count -gt 0) {
-                $findings.Add($rule.Label)
+                $isHighRisk = $highRiskLabels -contains $rule.Label
+                if ($isHighRisk) {
+                    $findings.Add($rule.Label)
+                } else {
+                    $informationalFindings.Add($rule.Label)
+                }
+
                 foreach ($m in $matches) {
                     $token = Get-XmaTokenAtPosition -Tokens $commandTokens -Position $m.Index
                     $argumentText = if ($token) { [string]$token.Text } else { [string]$m.Value }
                     $referencedPaths = @(Get-XmaReferencedJarPaths -Text $argumentText)
-                    $findingDetails.Add([pscustomobject]@{
+                    $detail = [pscustomobject]@{
                         Label = $rule.Label
                         Position = [int]$m.Index
                         Argument = $argumentText
                         ReferencedPaths = $referencedPaths
-                    })
+                        Notes = ""
+                    }
+
+                    if ($isHighRisk) {
+                        $findingDetails.Add($detail)
+                    } else {
+                        $informationalDetails.Add($detail)
+                    }
                 }
             }
         }
 
-        $agentMatches = [regex]::Matches($cmd, '(?i)-javaagent:([^\s"]+|"[^"]+")')
-        foreach ($m in $agentMatches) {
-            $token = Get-XmaTokenAtPosition -Tokens $commandTokens -Position $m.Index
-            $argumentText = if ($token) { [string]$token.Text } else { [string]$m.Value }
-            $agentPath = $m.Groups[1].Value.Trim('"').Trim("'")
-            $agentName = [System.IO.Path]::GetFileName($agentPath)
-            $lowerName = $agentName.ToLowerInvariant()
-            $isLegit = $false
-            foreach ($hint in $script:Config.LegitAgentHints) {
-                if ($lowerName.Contains($hint)) {
-                    $isLegit = $true
-                    break
-                }
+        foreach ($token in @($commandTokens | Where-Object { ([string]$_.Text) -match '^(?i)-javaagent:.+' })) {
+            $argumentText = [string]$token.Text
+            $agentArgument = ""
+            if ($argumentText -match '^(?i)-javaagent:(.+)$') {
+                $agentArgument = $matches[1]
             }
-            if (-not $isLegit) {
-                $findings.Add("Untrusted javaagent: $agentName")
-                $findingDetails.Add([pscustomobject]@{
-                    Label = "Untrusted javaagent: $agentName"
-                    Position = [int]$m.Index
+
+            $assessment = Get-XmaJavaAgentAssessment -AgentArgument $agentArgument
+            $agentName = if ([string]::IsNullOrWhiteSpace($assessment.AgentName)) { "unknown" } else { $assessment.AgentName }
+            $agentPath = [string]$assessment.AgentPath
+            $referencedPaths = @(Get-XmaReferencedJarPaths -Text $argumentText)
+            if ($referencedPaths.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($agentPath) -and $agentPath -match '(?i)\.(jar|zip)$') {
+                $referencedPaths = @($agentPath)
+            }
+
+            if ($assessment.RiskLevel -eq "trusted") {
+                $label = "Trusted javaagent: $agentName"
+                $informationalFindings.Add($label)
+                $informationalDetails.Add([pscustomobject]@{
+                    Label = $label
+                    Position = [int]$token.Start
                     Argument = $argumentText
-                    ReferencedPaths = @($agentPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                    ReferencedPaths = @($referencedPaths)
+                    Notes = [string]$assessment.TrustReason
+                })
+            } elseif ($assessment.RiskLevel -eq "suspicious") {
+                $label = "Suspicious javaagent: $agentName"
+                $findings.Add($label)
+                $findingDetails.Add([pscustomobject]@{
+                    Label = $label
+                    Position = [int]$token.Start
+                    Argument = $argumentText
+                    ReferencedPaths = @($referencedPaths)
+                    Notes = [string]$assessment.TrustReason
+                })
+            } else {
+                $label = "Unrecognized javaagent: $agentName"
+                $informationalFindings.Add($label)
+                $informationalDetails.Add([pscustomobject]@{
+                    Label = $label
+                    Position = [int]$token.Start
+                    Argument = $argumentText
+                    ReferencedPaths = @($referencedPaths)
+                    Notes = [string]$assessment.TrustReason
                 })
             }
         }
 
         $findingsUnique = @($findings | Select-Object -Unique)
-        if ($findingsUnique.Count -gt 0) {
+        $informationalUnique = @($informationalFindings | Select-Object -Unique)
+        if ($findingsUnique.Count -gt 0 -or $informationalUnique.Count -gt 0) {
             $allReferencedPaths = @(
                 $findingDetails |
                     ForEach-Object { @($_.ReferencedPaths) } |
@@ -1118,6 +1781,8 @@ function Measure-XmaRuntimeInjection {
                 CommandLine = $cmd
                 Findings = $findingsUnique
                 FindingDetails = @($findingDetails.ToArray())
+                InformationalFindings = $informationalUnique
+                InformationalDetails = @($informationalDetails.ToArray())
                 ReferencedJarPaths = $allReferencedPaths
             })
         }
@@ -1438,6 +2103,7 @@ $memoryResults = @()
 $runtimeWindowInfo = $null
 $runtimeEditedReports = @()
 $runtimeInjectionJarReport = $null
+$isLikelyLauncherModsTarget = $false
 
 $javaProcesses = @(Get-XmaJavaProcesses)
 $runtimeTargets = @(Get-XmaLikelyMinecraftJavaTargets -JavaProcesses $javaProcesses)
@@ -1447,6 +2113,13 @@ if ($runtimeTargets.Count -eq 0) {
 $runtimeWindowInfo = Get-XmaRuntimeWindowInfo -RuntimeTargets $runtimeTargets -WindowEndUtc $scanCompletedAtUtc
 
 if ($target.PSIsContainer) {
+    $isLikelyLauncherModsTarget = Test-XmaLikelyLauncherModsPath -Path $target.FullName
+} else {
+    $parentPath = Split-Path -LiteralPath $target.FullName -Parent
+    $isLikelyLauncherModsTarget = Test-XmaLikelyLauncherModsPath -Path $parentPath
+}
+
+if ($target.PSIsContainer -and $isLikelyLauncherModsTarget) {
     $runtimeEditedReports = @(Apply-XmaRuntimeEditFlags -Reports @($reports.ToArray()) -RuntimeWindowInfo $runtimeWindowInfo -GraceSeconds $script:Config.RuntimeEditGraceSeconds)
 }
 
@@ -1512,7 +2185,9 @@ if (-not $Quiet) {
     }
 
     if ($target.PSIsContainer) {
-        if ($runtimeEditedReports.Count -gt 0) {
+        if (-not $isLikelyLauncherModsTarget) {
+            Write-Host "Mods edited during active runtime: skipped (target path is not a launcher mods folder)." -ForegroundColor DarkGray
+        } elseif ($runtimeEditedReports.Count -gt 0) {
             Write-Host "Mods edited during active runtime: $($runtimeEditedReports.Count)" -ForegroundColor Red
             foreach ($rr in @($runtimeEditedReports | Sort-Object FileName)) {
                 $editText = if ($rr.PSObject.Properties.Name -contains "LastWriteTimeLocal") { [string]$rr.LastWriteTimeLocal } else { "unknown" }
@@ -1565,15 +2240,21 @@ if ($flagged.Count -gt 0) {
     Write-Host ""
 }
 
-if (@($runtimeFindings).Count -gt 0) {
+$runtimeSuspiciousFindings = @($runtimeFindings | Where-Object { @($_.FindingDetails).Count -gt 0 })
+$runtimeInformationalFindings = @($runtimeFindings | Where-Object { @($_.InformationalDetails).Count -gt 0 })
+
+if ($runtimeSuspiciousFindings.Count -gt 0) {
     Write-XmaSection -Title "JVM Runtime Injection Findings" -Color Red
-    foreach ($rf in $runtimeFindings) {
+    foreach ($rf in $runtimeSuspiciousFindings) {
         Write-Host ""
         Write-Host "PID $($rf.ProcessId) ($($rf.Name))" -ForegroundColor White
         foreach ($detail in @($rf.FindingDetails)) {
             Write-Host "  - $($detail.Label)" -ForegroundColor Yellow
             Write-Host "      position: $($detail.Position)" -ForegroundColor DarkGray
             Write-Host "      argument: $($detail.Argument)" -ForegroundColor DarkGray
+            if (-not [string]::IsNullOrWhiteSpace([string]$detail.Notes)) {
+                Write-Host "      note: $($detail.Notes)" -ForegroundColor DarkGray
+            }
             foreach ($path in @($detail.ReferencedPaths | Select-Object -Unique)) {
                 Write-Host "      jar: $path" -ForegroundColor DarkYellow
             }
@@ -1582,13 +2263,35 @@ if (@($runtimeFindings).Count -gt 0) {
     if ($runtimeInjectionJarReport) {
         $addedCount = @($runtimeInjectionJarReport.AddedReports).Count
         $annotatedCount = @($runtimeInjectionJarReport.AnnotatedReports).Count
-        Write-Host ""
-        Write-Host "Runtime-injected jar scan results: added=$addedCount, annotated=$annotatedCount" -ForegroundColor Magenta
+        if ($addedCount -gt 0 -or $annotatedCount -gt 0) {
+            Write-Host ""
+            Write-Host "Runtime-injected jar scan results: added=$addedCount, annotated=$annotatedCount" -ForegroundColor Magenta
+        }
     }
     Write-Host ""
 } elseif (-not $SkipRuntimeScan) {
     Write-XmaSection -Title "JVM Runtime Injection Findings" -Color Green
     Write-Host "none" -ForegroundColor Green
+    Write-Host ""
+}
+
+if ($runtimeInformationalFindings.Count -gt 0) {
+    Write-XmaSection -Title "JVM Runtime Notes (Likely Legit)" -Color DarkCyan
+    foreach ($rf in $runtimeInformationalFindings) {
+        Write-Host ""
+        Write-Host "PID $($rf.ProcessId) ($($rf.Name))" -ForegroundColor White
+        foreach ($detail in @($rf.InformationalDetails)) {
+            Write-Host "  - $($detail.Label)" -ForegroundColor Cyan
+            Write-Host "      position: $($detail.Position)" -ForegroundColor DarkGray
+            Write-Host "      argument: $($detail.Argument)" -ForegroundColor DarkGray
+            if (-not [string]::IsNullOrWhiteSpace([string]$detail.Notes)) {
+                Write-Host "      note: $($detail.Notes)" -ForegroundColor DarkGray
+            }
+            foreach ($path in @($detail.ReferencedPaths | Select-Object -Unique)) {
+                Write-Host "      jar: $path" -ForegroundColor DarkCyan
+            }
+        }
+    }
     Write-Host ""
 }
 

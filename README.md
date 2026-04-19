@@ -93,19 +93,33 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path
 
 - Token checks inside mod jars for:
   - `autoclicker`, `aimassist`, `reach`, `velocity`, `killaura`, `scaffold`, `fly`, `speed`, `esp`, `xray`, `selfdestruct`, `bypass`, `exploit`
+  - plus expanded ghost-client signatures (examples: `dqrkis`, `argon`, `walksyoptimizer`, `authbypass`, `obfuscatedauth`, `licensecheckmixin`, `triggerbot`, `fakeinv`, `pingspoof`, `autocrystal`, `autoanchor`)
+  - class-byte printable string extraction is also scanned (not only metadata/resource files)
 - Obfuscation markers:
   - `a.class`, `b.class`, high counts of single-letter class names
+  - deep nested single-letter package paths and short non-ASCII class-name bursts
+  - namespace recursion anomalies (repeated class path segments in unusually large jars)
+  - class-byte hidden-string loader signals (for example Base64 + crypto primitives)
 - Hidden/system jar attributes in the target mods folder
 - JVM runtime injection argument patterns (prioritizes likely Minecraft java processes)
+- JVM runtime output is split into:
+  - suspicious injection findings
+  - likely-legit runtime notes (trusted javaagents / low-risk launcher args)
 - Runtime session check:
   - shows Java process uptime/start time
   - flags jars edited while Minecraft Java was actively running
+  - edit-window flags are only applied when the scan target looks like a launcher mods folder
   - notes that exact before/after content diff needs a baseline snapshot
 - JVM argument injection findings now include:
   - matched argument position in the command line
   - the full matched argument text
   - resolved jar paths when present
-  - automatic scan/flagging of referenced injected jars
+  - semicolon/comma-separated jar lists are parsed and each jar path is extracted
+  - automatic scan/flagging of referenced injected jars only when high-risk JVM injection findings are present
+- Javaagent trust tuning includes common launcher/dev hints (for example Lombok/toolchain jars) to reduce false positives
+- Unrecognized javaagents are now separated from suspicious javaagents to reduce false positives
+- High-confidence cheat signature density and critical cheat identifiers can escalate directly to `Suspicious`
+- Combined hidden-string loader markers + namespace recursion can escalate directly to `Suspicious`
 - Java memory string hits for known cheat identifiers (Mapped + Private memory scan with minimum string length 5)
 - Mod hash verification via Modrinth and Megabase
 
