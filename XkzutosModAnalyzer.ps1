@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.10"
+    Version = "2.0.11"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -226,6 +226,41 @@ $script:Config = @{
         "gypsy",
         "hellion"
     )
+    CheatSignatureStrings = @(
+        "Dqrkis Client (Cracked)",
+        "A.utomatically hit-crystals for you",
+        "Automatically attacks while falling with mace.",
+        "MemoryModuleHelper",
+        "renderModuleList",
+        "moduleToggleAnim",
+        "VIEW_LABEL_MODULES",
+        "VIEW_ICON_MODULES",
+        "modulePreview",
+        "modulesButton",
+        "selectedModule",
+        "ModuleRegistry",
+        "ModModule",
+        "AutoCrystal",
+        "AutoAnchor",
+        "Anchor Macro",
+        "InventoryTotem",
+        "HoverTotem",
+        "ShieldDisabler",
+        "TriggerBot",
+        "FakeInv",
+        "PingSpoof"
+    )
+    HighConfidenceSignatureStrings = @(
+        "Dqrkis Client (Cracked)",
+        "A.utomatically hit-crystals for you",
+        "Automatically attacks while falling with mace.",
+        "MemoryModuleHelper",
+        "moduleToggleAnim",
+        "VIEW_LABEL_MODULES",
+        "VIEW_ICON_MODULES",
+        "ModuleRegistry",
+        "ModModule"
+    )
     MemoryFilterStrings = @(
         "Doomsday",
         "DoomsdayClient",
@@ -418,6 +453,8 @@ $script:MemoryNeedlesNormalized = @(
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
         Select-Object -Unique
 )
+
+$script:SignatureMatchersCache = @()
 
 $script:MemoryApiLoaded = $false
 $script:PathWasExplicit = $PSBoundParameters.ContainsKey("Path") -and -not [string]::IsNullOrWhiteSpace($Path)
@@ -954,6 +991,7 @@ function Apply-XmaRuntimeInjectedJarFlags {
                 Verification = $null
                 DownloadSource = Get-XmaDownloadSource -Path $path
                 TokenHits = @()
+                SignatureHits = @()
                 SingleLetterClassCount = 0
                 ContainsAClass = $false
                 ContainsBClass = $false
@@ -1059,6 +1097,95 @@ function Get-XmaDownloadSource {
     return ""
 }
 
+function Get-XmaObjectPropertyValue {
+    param(
+        [object]$InputObject,
+        [string]$Name
+    )
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    $property = $InputObject.PSObject.Properties[$Name]
+    if (-not $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Format-XmaCompactNumber {
+    param([object]$Value)
+
+    if ($null -eq $Value) {
+        return ""
+    }
+
+    try {
+        $number = [int64]$Value
+    } catch {
+        return ""
+    }
+
+    if ($number -lt 0) {
+        return ""
+    }
+
+    if ($number -lt 1000) {
+        return [string]$number
+    }
+
+    $culture = [System.Globalization.CultureInfo]::InvariantCulture
+    if ($number -lt 1000000) {
+        $scaled = [double]$number / 1000
+        if ($number -ge 100000 -or ($number % 1000) -eq 0) {
+            return [string]::Format($culture, "{0:0}k", $scaled)
+        }
+
+        return [string]::Format($culture, "{0:0.#}k", $scaled)
+    }
+
+    $scaled = [double]$number / 1000000
+    if (($number % 1000000) -eq 0) {
+        return [string]::Format($culture, "{0:0}m", $scaled)
+    }
+
+    return [string]::Format($culture, "{0:0.#}m", $scaled)
+}
+
+function Format-XmaReportDisplayName {
+    param([object]$Report)
+
+    $name = [string](Get-XmaObjectPropertyValue -InputObject $Report -Name "FileName")
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        return ""
+    }
+
+    $verification = Get-XmaObjectPropertyValue -InputObject $Report -Name "Verification"
+    if ($null -eq $verification) {
+        return $name
+    }
+
+    $source = [string](Get-XmaObjectPropertyValue -InputObject $verification -Name "Source")
+    if ($source -ne "Modrinth") {
+        return $name
+    }
+
+    $url = [string](Get-XmaObjectPropertyValue -InputObject $verification -Name "VersionUrl")
+    $downloads = Format-XmaCompactNumber -Value (Get-XmaObjectPropertyValue -InputObject $verification -Name "VersionDownloads")
+
+    if (-not [string]::IsNullOrWhiteSpace($url)) {
+        $name = "$name ($url)"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($downloads)) {
+        $name = "$name $downloads downloads"
+    }
+
+    return $name
+}
+
 function Get-XmaHiddenJarReport {
     param(
         [Parameter(Mandatory)]
@@ -1123,12 +1250,21 @@ function Invoke-XmaModrinthLookup {
         }
 
         $projectInfo = Invoke-RestMethod -Uri "https://api.modrinth.com/v2/project/$($versionInfo.project_id)" -Method Get -UseBasicParsing -TimeoutSec 6 -ErrorAction Stop
+        $slug = [string]$projectInfo.slug
+        $versionUrl = ""
+        if (-not [string]::IsNullOrWhiteSpace($slug)) {
+            $versionUrl = "modrinth.com/mod/$slug/versions"
+        }
+
         return [pscustomobject]@{
             Source = "Modrinth"
             Name = [string]$projectInfo.title
-            Slug = [string]$projectInfo.slug
+            Slug = $slug
             ProjectId = [string]$versionInfo.project_id
+            VersionId = [string](Get-XmaObjectPropertyValue -InputObject $versionInfo -Name "id")
             Version = [string]$versionInfo.version_number
+            VersionUrl = $versionUrl
+            VersionDownloads = Get-XmaObjectPropertyValue -InputObject $versionInfo -Name "downloads"
         }
     } catch {
         return $null
@@ -1236,6 +1372,69 @@ function Convert-XmaTokenMatchText {
     }
 }
 
+function Convert-XmaLooseSignatureText {
+    param([string]$Text)
+
+    $normalized = Convert-XmaTokenMatchText -Text $Text
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return ""
+    }
+
+    $builder = New-Object System.Text.StringBuilder
+    foreach ($ch in $normalized.ToCharArray()) {
+        if ([char]::IsLetterOrDigit($ch)) {
+            [void]$builder.Append([char]::ToLowerInvariant($ch))
+        }
+    }
+
+    return $builder.ToString()
+}
+
+function Get-XmaSignatureMatchers {
+    if (@($script:SignatureMatchersCache).Count -gt 0) {
+        return @($script:SignatureMatchersCache)
+    }
+
+    $matcherList = New-Object System.Collections.Generic.List[object]
+    $seenNormalized = @{}
+    $highConfidence = @{}
+    foreach ($sig in @($script:Config.HighConfidenceSignatureStrings)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$sig)) {
+            $highConfidence[[string]$sig] = $true
+        }
+    }
+
+    foreach ($sig in @($script:Config.CheatSignatureStrings)) {
+        $display = [string]$sig
+        if ([string]::IsNullOrWhiteSpace($display)) {
+            continue
+        }
+
+        $normalized = Convert-XmaLooseSignatureText -Text $display
+        if ([string]::IsNullOrWhiteSpace($normalized)) {
+            continue
+        }
+
+        if ($seenNormalized.ContainsKey($normalized)) {
+            continue
+        }
+        $seenNormalized[$normalized] = $true
+
+        $isHighConfidence = $highConfidence.ContainsKey($display)
+        $weight = if ($isHighConfidence) { 3 } else { 1 }
+
+        $matcherList.Add([pscustomobject]@{
+            Signature = $display
+            Normalized = $normalized
+            Weight = $weight
+            HighConfidence = $isHighConfidence
+        })
+    }
+
+    $script:SignatureMatchersCache = @($matcherList.ToArray())
+    return @($script:SignatureMatchersCache)
+}
+
 function Get-XmaPrintableStrings {
     param(
         [byte[]]$Bytes,
@@ -1275,6 +1474,32 @@ function Find-XmaTokenHits {
         }
     }
     return @($hits | Select-Object -Unique)
+}
+
+function Find-XmaSignatureHits {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return @()
+    }
+
+    $normalizedText = Convert-XmaLooseSignatureText -Text $Text
+    if ([string]::IsNullOrWhiteSpace($normalizedText)) {
+        return @()
+    }
+
+    $hits = New-Object System.Collections.Generic.List[object]
+    foreach ($matcher in @(Get-XmaSignatureMatchers)) {
+        if ($normalizedText.Contains($matcher.Normalized)) {
+            $hits.Add([pscustomobject]@{
+                Signature = [string]$matcher.Signature
+                Weight = [int]$matcher.Weight
+                HighConfidence = [bool]$matcher.HighConfidence
+            })
+        }
+    }
+
+    return @($hits.ToArray())
 }
 
 function Get-XmaJarMetadata {
@@ -1388,9 +1613,42 @@ function Measure-XmaJar {
         }
 
         $tokenHits = New-Object System.Collections.Generic.List[string]
+        $signatureHits = @{}
+        $signatureSamples = @{}
+        $highConfidenceSignatureHits = @{}
         $reasonList = New-Object System.Collections.Generic.List[string]
         $structuralIndicator = 0
         $strongStructuralIndicator = 0
+
+        function Add-XmaSignatureSample {
+            param([string]$SampleText)
+
+            if ([string]::IsNullOrWhiteSpace($SampleText)) {
+                return
+            }
+
+            foreach ($sigHit in @(Find-XmaSignatureHits -Text $SampleText)) {
+                $sig = [string]$sigHit.Signature
+                if ([string]::IsNullOrWhiteSpace($sig)) {
+                    continue
+                }
+
+                if (-not $signatureHits.ContainsKey($sig)) {
+                    $signatureHits[$sig] = [int]$sigHit.Weight
+                    $sample = ([string]$SampleText).Trim()
+                    if ($sample.Length -gt 140) {
+                        $sample = $sample.Substring(0, 140) + "..."
+                    }
+                    if (-not [string]::IsNullOrWhiteSpace($sample)) {
+                        $signatureSamples[$sig] = $sample
+                    }
+                }
+
+                if ([bool]$sigHit.HighConfidence) {
+                    $highConfidenceSignatureHits[$sig] = $true
+                }
+            }
+        }
 
         $binaryIndicatorCounts = @{
             SecretKeySpec = 0
@@ -1405,6 +1663,12 @@ function Measure-XmaJar {
         foreach ($hit in Find-XmaTokenHits -Text $entryText) {
             $tokenHits.Add($hit)
         }
+        foreach ($entryName in $entryNames) {
+            Add-XmaSignatureSample -SampleText $entryName
+        }
+        foreach ($metaLine in @(([string]$meta.MetadataText -split "`r?`n") | Select-Object -First 250)) {
+            Add-XmaSignatureSample -SampleText $metaLine
+        }
 
         $textEntries = @(
             $zip.Entries | Where-Object { $_.FullName -match "(?i)\.(json|toml|mf|txt|cfg|properties|xml)$" } | Select-Object -First 80
@@ -1413,6 +1677,9 @@ function Measure-XmaJar {
             $text = Get-XmaEntryText -Entry $entry
             foreach ($hit in Find-XmaTokenHits -Text $text) {
                 $tokenHits.Add($hit)
+            }
+            foreach ($line in @(($text -split "`r?`n") | Select-Object -First 220)) {
+                Add-XmaSignatureSample -SampleText $line
             }
         }
 
@@ -1433,6 +1700,7 @@ function Measure-XmaJar {
                 foreach ($hit in Find-XmaTokenHits -Text $chunk) {
                     $tokenHits.Add($hit)
                 }
+                Add-XmaSignatureSample -SampleText $chunkText
 
                 if ($chunkText -match '(?i)SecretKeySpec') { $binaryIndicatorCounts.SecretKeySpec++ }
                 if ($chunkText -match '(?i)\bCipher\b|javax/crypto/Cipher') { $binaryIndicatorCounts.Cipher++ }
@@ -1490,6 +1758,50 @@ function Measure-XmaJar {
             }
             $tokenScore += $weight
             $scoredHits.Add("$hit(w$weight)")
+        }
+
+        $signatureHitsUnique = @($signatureHits.Keys | Sort-Object)
+        $signatureScore = 0
+        $signatureDisplay = New-Object System.Collections.Generic.List[string]
+        foreach ($sig in $signatureHitsUnique) {
+            $sigWeight = [int]$signatureHits[$sig]
+            $signatureScore += $sigWeight
+
+            $sample = ""
+            if ($signatureSamples.ContainsKey($sig)) {
+                $sample = [string]$signatureSamples[$sig]
+            }
+
+            if ([string]::IsNullOrWhiteSpace($sample)) {
+                $signatureDisplay.Add("$sig(w$sigWeight)")
+            } else {
+                $signatureDisplay.Add("$sig(w$sigWeight): '$sample'")
+            }
+        }
+
+        $signatureIndicator = 0
+        if ($signatureHitsUnique.Count -gt 0) {
+            $signatureTop = @($signatureDisplay | Select-Object -First 8)
+            $remainingSignatureCount = $signatureDisplay.Count - $signatureTop.Count
+            $suffix = ""
+            if ($remainingSignatureCount -gt 0) {
+                $suffix = " (+$remainingSignatureCount more)"
+            }
+            $reasonList.Add("Signature-string hits $signatureScore from: $($signatureTop -join '; ')$suffix")
+
+            if ($signatureScore -ge 2) {
+                $signatureIndicator = 1
+            }
+        }
+
+        $strongSignatureIndicator = 0
+        $highConfidenceSignatureNames = @($highConfidenceSignatureHits.Keys | Sort-Object)
+        if ($highConfidenceSignatureNames.Count -gt 0) {
+            $reasonList.Add("High-confidence signature strings: $($highConfidenceSignatureNames -join ', ')")
+            $strongSignatureIndicator = 1
+        } elseif ($signatureScore -ge 6) {
+            $reasonList.Add("Dense signature-string hit profile (score >= 6).")
+            $strongSignatureIndicator = 1
         }
 
         $tokenIndicator = 0
@@ -1564,6 +1876,8 @@ function Measure-XmaJar {
         $indicatorCount = 0
         if ($tokenIndicator -gt 0) { $indicatorCount++ }
         if ($strongTokenIndicator -gt 0) { $indicatorCount++ }
+        if ($signatureIndicator -gt 0) { $indicatorCount++ }
+        if ($strongSignatureIndicator -gt 0) { $indicatorCount++ }
         if ($structuralIndicator -gt 0) { $indicatorCount++ }
         if ($strongStructuralIndicator -gt 0) { $indicatorCount++ }
         if ($obfuscationIndicator -gt 0) { $indicatorCount++ }
@@ -1591,6 +1905,7 @@ function Measure-XmaJar {
             Verification = $verification
             DownloadSource = Get-XmaDownloadSource -Path $JarPath
             TokenHits = $tokenHitsUnique
+            SignatureHits = $signatureHitsUnique
             SingleLetterClassCount = $singleLetterClasses.Count
             ContainsAClass = $containsAClass
             ContainsBClass = $containsBClass
@@ -2007,7 +2322,8 @@ function Write-XmaStatusList {
     }
 
     foreach ($row in $rows) {
-        Write-Host "  - $($row.FileName)" -ForegroundColor $Color
+        $displayName = Format-XmaReportDisplayName -Report $row
+        Write-Host "  - $displayName" -ForegroundColor $Color
     }
     Write-Host ""
 }
@@ -2082,6 +2398,7 @@ foreach ($jar in $jarFiles) {
             Verification = $null
             DownloadSource = Get-XmaDownloadSource -Path $jar.FullName
             TokenHits = @()
+            SignatureHits = @()
             SingleLetterClassCount = 0
             ContainsAClass = $false
             ContainsBClass = $false
@@ -2191,7 +2508,8 @@ if (-not $Quiet) {
             Write-Host "Mods edited during active runtime: $($runtimeEditedReports.Count)" -ForegroundColor Red
             foreach ($rr in @($runtimeEditedReports | Sort-Object FileName)) {
                 $editText = if ($rr.PSObject.Properties.Name -contains "LastWriteTimeLocal") { [string]$rr.LastWriteTimeLocal } else { "unknown" }
-                Write-Host ("  - {0} (edited: {1})" -f $rr.FileName, $editText) -ForegroundColor DarkYellow
+                $displayName = Format-XmaReportDisplayName -Report $rr
+                Write-Host ("  - {0} (edited: {1})" -f $displayName, $editText) -ForegroundColor DarkYellow
             }
         } elseif ($runtimeWindowInfo -and $runtimeWindowInfo.HasWindow) {
             Write-Host "Mods edited during active runtime: 0" -ForegroundColor Green
@@ -2219,12 +2537,38 @@ if (-not $NoStatusLists -or $ShowStatusLists) {
     Write-XmaStatusList -Label "Suspicious" -Color Red -Items @($reportArray | Where-Object { $_.Status -eq "Suspicious" })
 }
 
+$signatureHitReports = @(
+    $reportArray |
+        Where-Object {
+            @($_.SignatureHits).Count -gt 0
+        }
+)
+if ($signatureHitReports.Count -gt 0) {
+    Write-XmaSection -Title "Matched Signature Strings" -Color DarkMagenta
+    foreach ($r in @($signatureHitReports | Sort-Object FileName)) {
+        Write-Host ""
+        $displayName = Format-XmaReportDisplayName -Report $r
+        Write-Host "$displayName [$($r.Status)]" -ForegroundColor White
+        $displayHits = @($r.SignatureHits | Select-Object -First 25)
+        foreach ($sig in $displayHits) {
+            Write-Host "  - $sig" -ForegroundColor Magenta
+        }
+
+        $remainingHits = @($r.SignatureHits).Count - $displayHits.Count
+        if ($remainingHits -gt 0) {
+            Write-Host "  - (+$remainingHits more)" -ForegroundColor DarkMagenta
+        }
+    }
+    Write-Host ""
+}
+
 $flagged = @($reportArray | Where-Object { $_.Status -ne "Verified" -and $_.Status -ne "Unknown" })
 if ($flagged.Count -gt 0) {
     Write-XmaSection -Title "Flagged Mods (Reasons)" -Color Magenta
     foreach ($r in $flagged) {
         Write-Host ""
-        Write-Host "$($r.FileName) [$($r.Status)]" -ForegroundColor White
+        $displayName = Format-XmaReportDisplayName -Report $r
+        Write-Host "$displayName [$($r.Status)]" -ForegroundColor White
         if ($r.Verification) {
             Write-Host "  Verified source: $($r.Verification.Source) / $($r.Verification.Name)" -ForegroundColor DarkGray
         } else {

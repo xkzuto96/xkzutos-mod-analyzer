@@ -89,17 +89,18 @@ Hide status lists (compact output):
 powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path\To\mods" -NoStatusLists
 ```
 
-## What It Flags
+## What It Checks
 
-- Token checks inside mod jars for:
-  - `autoclicker`, `aimassist`, `reach`, `velocity`, `killaura`, `scaffold`, `fly`, `speed`, `esp`, `xray`, `selfdestruct`, `bypass`, `exploit`
-  - plus expanded ghost-client signatures (examples: `dqrkis`, `argon`, `walksyoptimizer`, `authbypass`, `obfuscatedauth`, `licensecheckmixin`, `triggerbot`, `fakeinv`, `pingspoof`, `autocrystal`, `autoanchor`)
-  - class-byte printable string extraction is also scanned (not only metadata/resource files)
-- Obfuscation markers:
-  - `a.class`, `b.class`, high counts of single-letter class names
-  - deep nested single-letter package paths and short non-ASCII class-name bursts
-  - namespace recursion anomalies (repeated class path segments in unusually large jars)
-  - class-byte hidden-string loader signals (for example Base64 + crypto primitives)
+- Mod jar content indicators:
+  - known cheat-client behavior families and suspicious feature naming
+  - expanded private-client signature patterns without publishing the raw match list
+  - metadata, resource text, and printable class-byte text
+  - tolerant matching for obfuscated UI/module text patterns
+  - per-jar match reporting inside the tool output
+- Obfuscation and loader markers:
+  - abnormal class naming density and short-name bursts
+  - deep or repeated package namespace patterns in large jars
+  - class-byte hidden-loader and encoded-payload signals
 - Hidden/system jar attributes in the target mods folder
 - JVM runtime injection argument patterns (prioritizes likely Minecraft java processes)
 - JVM runtime output is split into:
@@ -118,9 +119,9 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path
   - automatic scan/flagging of referenced injected jars only when high-risk JVM injection findings are present
 - Javaagent trust tuning includes common launcher/dev hints (for example Lombok/toolchain jars) to reduce false positives
 - Unrecognized javaagents are now separated from suspicious javaagents to reduce false positives
-- High-confidence cheat signature density and critical cheat identifiers can escalate directly to `Suspicious`
-- Combined hidden-string loader markers + namespace recursion can escalate directly to `Suspicious`
-- Java memory string hits for known cheat identifiers (Mapped + Private memory scan with minimum string length 5)
+- High-confidence signature density and critical behavior identifiers can escalate directly to `Suspicious`
+- Combined hidden-loader markers + namespace recursion can escalate directly to `Suspicious`
+- Java memory hits for known suspicious identifiers (Mapped + Private memory scan)
 - Mod hash verification via Modrinth and Megabase
 
 ## Credits
