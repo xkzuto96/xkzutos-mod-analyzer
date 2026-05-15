@@ -92,7 +92,7 @@ powershell -ExecutionPolicy Bypass -File .\XkzutosModAnalyzer.ps1 -Path "C:\Path
 ## Report Output
 
 - Verified Modrinth entries show the project versions page and matched version download count.
-- After a normal interactive scan, the analyzer can save a readable TXT report to Downloads, save to a custom folder or file path, or upload a temporary share link and copy it.
+- After a normal interactive scan, the analyzer can save a readable TXT report to Downloads, save to a custom folder or file path, or try multiple temporary share-link providers and copy the first working link.
 - `-Quiet` mode skips the final interactive report menu for automation.
 
 ## What It Checks

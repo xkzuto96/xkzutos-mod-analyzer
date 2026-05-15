@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.12"
+    Version = "2.0.13"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -2693,11 +2693,72 @@ function Copy-XmaTextToClipboard {
 function Invoke-XmaTemporaryReportUpload {
     param(
         [Parameter(Mandatory)]
-        [string]$ReportPath
+        [string]$ReportPath,
+        [Parameter(Mandatory)]
+        [string]$ReportText
     )
 
     Add-Type -AssemblyName System.Net.Http
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
+    $failures = New-Object System.Collections.Generic.List[string]
+
+    try {
+        Write-Host "Trying paste.rs..." -ForegroundColor DarkCyan
+        return Invoke-XmaPasteRsUpload -ReportText $ReportText
+    } catch {
+        $failures.Add("paste.rs")
+    }
+
+    try {
+        Write-Host "Trying tmpfiles.org..." -ForegroundColor DarkCyan
+        return Invoke-XmaTmpFilesUpload -ReportPath $ReportPath
+    } catch {
+        $failures.Add("tmpfiles.org")
+    }
+
+    try {
+        Write-Host "Trying file.io..." -ForegroundColor DarkCyan
+        return Invoke-XmaFileIoUpload -ReportPath $ReportPath
+    } catch {
+        $failures.Add("file.io")
+    }
+
+    throw "All upload providers failed ($($failures -join ', ')). Use option 1 to save TXT."
+}
+
+function Invoke-XmaPasteRsUpload {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ReportText
+    )
+
+    $client = New-Object System.Net.Http.HttpClient
+    $client.Timeout = [TimeSpan]::FromSeconds(30)
+    $content = New-Object System.Net.Http.StringContent -ArgumentList @($ReportText, [System.Text.Encoding]::UTF8, "text/plain")
+
+    try {
+        $response = $client.PostAsync("https://paste.rs/", $content).GetAwaiter().GetResult()
+        $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult().Trim()
+        if ([int]$response.StatusCode -ne 201) {
+            throw "paste.rs returned HTTP $([int]$response.StatusCode)"
+        }
+        if ($body -notmatch '^https?://') {
+            throw "paste.rs did not return a link"
+        }
+
+        return $body
+    } finally {
+        $content.Dispose()
+        $client.Dispose()
+    }
+}
+
+function Invoke-XmaTmpFilesUpload {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ReportPath
+    )
 
     $client = New-Object System.Net.Http.HttpClient
     $client.Timeout = [TimeSpan]::FromSeconds(30)
@@ -2707,16 +2768,58 @@ function Invoke-XmaTemporaryReportUpload {
 
     try {
         $form.Add($fileContent, "file", [System.IO.Path]::GetFileName($ReportPath))
-        $response = $client.PostAsync("https://0x0.st", $form).GetAwaiter().GetResult()
+        $response = $client.PostAsync("https://tmpfiles.org/api/v1/upload", $form).GetAwaiter().GetResult()
         $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult().Trim()
         if (-not $response.IsSuccessStatusCode) {
-            throw "Upload failed: HTTP $([int]$response.StatusCode) $body"
-        }
-        if ($body -notmatch '^https?://') {
-            throw "Upload did not return a link: $body"
+            throw "tmpfiles.org returned HTTP $([int]$response.StatusCode)"
         }
 
-        return $body
+        $json = $body | ConvertFrom-Json
+        $url = [string]$json.data.url
+        if ([string]::IsNullOrWhiteSpace($url)) {
+            throw "tmpfiles.org did not return a link"
+        }
+
+        if ($url -match '^https://tmpfiles\.org/([^/]+/.+)$' -and $url -notmatch '^https://tmpfiles\.org/dl/') {
+            $url = "https://tmpfiles.org/dl/$($matches[1])"
+        }
+
+        return $url
+    } finally {
+        $fileContent.Dispose()
+        $stream.Dispose()
+        $form.Dispose()
+        $client.Dispose()
+    }
+}
+
+function Invoke-XmaFileIoUpload {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ReportPath
+    )
+
+    $client = New-Object System.Net.Http.HttpClient
+    $client.Timeout = [TimeSpan]::FromSeconds(30)
+    $form = New-Object System.Net.Http.MultipartFormDataContent
+    $stream = [System.IO.File]::OpenRead($ReportPath)
+    $fileContent = New-Object System.Net.Http.StreamContent -ArgumentList $stream
+
+    try {
+        $form.Add($fileContent, "file", [System.IO.Path]::GetFileName($ReportPath))
+        $response = $client.PostAsync("https://file.io", $form).GetAwaiter().GetResult()
+        $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult().Trim()
+        if (-not $response.IsSuccessStatusCode) {
+            throw "file.io returned HTTP $([int]$response.StatusCode)"
+        }
+
+        $json = $body | ConvertFrom-Json
+        $url = [string]$json.link
+        if ([string]::IsNullOrWhiteSpace($url)) {
+            throw "file.io did not return a link"
+        }
+
+        return $url
     } finally {
         $fileContent.Dispose()
         $stream.Dispose()
@@ -2797,7 +2900,7 @@ function Show-XmaCompletionMenu {
                 try {
                     $tempPath = Save-XmaReportText -Text $ReportText -Destination ([System.IO.Path]::GetTempPath())
                     Write-Host "Uploading temporary report..." -ForegroundColor Cyan
-                    $link = Invoke-XmaTemporaryReportUpload -ReportPath $tempPath
+                    $link = Invoke-XmaTemporaryReportUpload -ReportPath $tempPath -ReportText $ReportText
                     $copied = Copy-XmaTextToClipboard -Text $link
                     if ($copied) {
                         Write-Host "Temporary link copied: $link" -ForegroundColor Green
