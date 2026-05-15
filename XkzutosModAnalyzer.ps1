@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $script:Config = @{
     Name = "xkzuto's mod analyzer"
-    Version = "2.0.11"
+    Version = "2.0.12"
     Creator = "xKzuto"
     Credits = @(
         [pscustomobject]@{
@@ -1075,7 +1075,13 @@ function Get-XmaFileHashSafe {
 function Get-XmaDownloadSource {
     param([string]$Path)
 
-    $zoneData = Get-Content -LiteralPath $Path -Raw -Stream Zone.Identifier -ErrorAction SilentlyContinue
+    $zoneLines = @()
+    try {
+        $zoneLines = @(Get-Content -LiteralPath $Path -Stream Zone.Identifier -ErrorAction SilentlyContinue)
+    } catch {
+        $zoneLines = @()
+    }
+    $zoneData = if ($zoneLines.Count -gt 0) { $zoneLines -join "`n" } else { "" }
     if (-not $zoneData) {
         return ""
     }
@@ -1184,6 +1190,56 @@ function Format-XmaReportDisplayName {
     }
 
     return $name
+}
+
+function Get-XmaReportDisplayParts {
+    param([object]$Report)
+
+    $name = [string](Get-XmaObjectPropertyValue -InputObject $Report -Name "FileName")
+    $url = ""
+    $downloadsText = ""
+
+    $verification = Get-XmaObjectPropertyValue -InputObject $Report -Name "Verification"
+    if ($null -ne $verification) {
+        $source = [string](Get-XmaObjectPropertyValue -InputObject $verification -Name "Source")
+        if ($source -eq "Modrinth") {
+            $url = [string](Get-XmaObjectPropertyValue -InputObject $verification -Name "VersionUrl")
+            $downloadsText = Format-XmaCompactNumber -Value (Get-XmaObjectPropertyValue -InputObject $verification -Name "VersionDownloads")
+        }
+    }
+
+    return [pscustomobject]@{
+        Name = $name
+        Url = $url
+        DownloadsText = $downloadsText
+    }
+}
+
+function Write-XmaReportDisplayLine {
+    param(
+        [string]$Prefix = "",
+        [Parameter(Mandatory)]
+        [object]$Report,
+        [string]$Color = "White",
+        [string]$Suffix = ""
+    )
+
+    $parts = Get-XmaReportDisplayParts -Report $Report
+    Write-Host $Prefix -NoNewLine -ForegroundColor $Color
+    Write-Host $parts.Name -NoNewLine -ForegroundColor $Color
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$parts.Url)) {
+        Write-Host " (" -NoNewLine -ForegroundColor $Color
+        Write-Host $parts.Url -NoNewLine -ForegroundColor Blue
+        Write-Host ")" -NoNewLine -ForegroundColor $Color
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$parts.DownloadsText)) {
+        Write-Host " " -NoNewLine -ForegroundColor $Color
+        Write-Host "$($parts.DownloadsText) downloads" -NoNewLine -ForegroundColor White
+    }
+
+    Write-Host $Suffix -ForegroundColor $Color
 }
 
 function Get-XmaHiddenJarReport {
@@ -2322,10 +2378,447 @@ function Write-XmaStatusList {
     }
 
     foreach ($row in $rows) {
-        $displayName = Format-XmaReportDisplayName -Report $row
-        Write-Host "  - $displayName" -ForegroundColor $Color
+        Write-XmaReportDisplayLine -Prefix "  - " -Report $row -Color $Color
     }
     Write-Host ""
+}
+
+function New-XmaReportText {
+    param(
+        [object]$Target,
+        [object[]]$JarFiles,
+        [object[]]$ReportArray,
+        [hashtable]$Summary,
+        [int]$TotalMods,
+        [object[]]$JavaProcesses,
+        [object[]]$RuntimeTargets,
+        [object]$RuntimeWindowInfo,
+        [object[]]$RuntimeEditedReports,
+        [bool]$IsLikelyLauncherModsTarget,
+        [object[]]$RuntimeSuspiciousFindings,
+        [object[]]$RuntimeInformationalFindings,
+        [object]$RuntimeInjectionJarReport,
+        [object[]]$MemoryResults,
+        [object[]]$HiddenReport,
+        [bool]$SkipRuntimeScan,
+        [bool]$SkipMemoryScan
+    )
+
+    $sb = New-Object System.Text.StringBuilder
+
+    function AddLine {
+        param([string]$Line = "")
+        [void]$sb.AppendLine($Line)
+    }
+
+    function AddSection {
+        param([string]$Title)
+        AddLine ""
+        AddLine ("=" * 70)
+        AddLine $Title
+        AddLine ("=" * 70)
+    }
+
+    function AddStatusList {
+        param(
+            [string]$Label,
+            [object[]]$Items
+        )
+
+        $rows = @($Items | Sort-Object FileName)
+        AddLine "$Label ($($rows.Count))"
+        if ($rows.Count -eq 0) {
+            AddLine "  (none)"
+            AddLine ""
+            return
+        }
+
+        foreach ($row in $rows) {
+            AddLine "  - $(Format-XmaReportDisplayName -Report $row)"
+        }
+        AddLine ""
+    }
+
+    AddLine "$($script:Config.Name) v$($script:Config.Version)"
+    AddLine "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz')"
+    AddLine "Target: $($Target.FullName)"
+    AddLine "Jar files scanned: $(@($JarFiles).Count)"
+    AddLine "Total report rows: $TotalMods"
+
+    AddSection "Summary"
+    AddLine ("Verified: {0}/{1}" -f $Summary['Verified'], $TotalMods)
+    AddLine ("Unknown: {0}/{1}" -f $Summary['Unknown'], $TotalMods)
+    AddLine ("Review: {0}/{1}" -f $Summary['Review'], $TotalMods)
+    AddLine ("Review (Verified): {0}/{1}" -f $Summary['Review (Verified)'], $TotalMods)
+    AddLine ("Suspicious: {0}/{1}" -f $Summary['Suspicious'], $TotalMods)
+
+    AddSection "Status Lists"
+    AddStatusList -Label "Verified" -Items @($ReportArray | Where-Object { $_.Status -eq "Verified" })
+    AddStatusList -Label "Unknown" -Items @($ReportArray | Where-Object { $_.Status -eq "Unknown" })
+    AddStatusList -Label "Review" -Items @($ReportArray | Where-Object { $_.Status -eq "Review" })
+    AddStatusList -Label "Review (Verified)" -Items @($ReportArray | Where-Object { $_.Status -eq "Review (Verified)" })
+    AddStatusList -Label "Suspicious" -Items @($ReportArray | Where-Object { $_.Status -eq "Suspicious" })
+
+    $signatureHitReports = @($ReportArray | Where-Object { @($_.SignatureHits).Count -gt 0 })
+    if ($signatureHitReports.Count -gt 0) {
+        AddSection "Matched Signature Strings"
+        foreach ($r in @($signatureHitReports | Sort-Object FileName)) {
+            AddLine "$(Format-XmaReportDisplayName -Report $r) [$($r.Status)]"
+            $displayHits = @($r.SignatureHits | Select-Object -First 25)
+            foreach ($sig in $displayHits) {
+                AddLine "  - $sig"
+            }
+            $remainingHits = @($r.SignatureHits).Count - $displayHits.Count
+            if ($remainingHits -gt 0) {
+                AddLine "  - (+$remainingHits more)"
+            }
+            AddLine ""
+        }
+    }
+
+    $flagged = @($ReportArray | Where-Object { $_.Status -ne "Verified" -and $_.Status -ne "Unknown" })
+    if ($flagged.Count -gt 0) {
+        AddSection "Flagged Mods (Reasons)"
+        foreach ($r in @($flagged | Sort-Object FileName)) {
+            AddLine "$(Format-XmaReportDisplayName -Report $r) [$($r.Status)]"
+            if ($r.Verification) {
+                AddLine "  Verified source: $($r.Verification.Source) / $($r.Verification.Name)"
+            } else {
+                AddLine "  Verified source: none"
+            }
+            if ($r.DownloadSource) {
+                AddLine "  Download source: $($r.DownloadSource)"
+            }
+            foreach ($reason in @($r.Reasons)) {
+                AddLine "  - $reason"
+            }
+            AddLine ""
+        }
+    }
+
+    AddSection "Runtime Session + Edit-Time Check"
+    AddLine "Java processes detected: $(@($JavaProcesses).Count)"
+    AddLine "Minecraft-like runtime targets: $(@($RuntimeTargets).Count)"
+    foreach ($proc in @($RuntimeTargets | Sort-Object ProcessId)) {
+        $startText = "unknown"
+        $uptimeText = "unknown"
+        if ($proc.StartTimeUtc -is [datetime]) {
+            $startText = $proc.StartTimeUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+            $uptimeText = Format-XmaDuration -Span ((Get-Date).ToUniversalTime() - $proc.StartTimeUtc)
+        }
+        AddLine ("  - PID {0} ({1}) started {2}, uptime {3}" -f $proc.ProcessId, $proc.Name, $startText, $uptimeText)
+    }
+
+    if ($RuntimeWindowInfo -and $RuntimeWindowInfo.HasWindow) {
+        AddLine "Runtime window: $($RuntimeWindowInfo.WindowStartUtc.ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss')) -> $($RuntimeWindowInfo.WindowEndUtc.ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss'))"
+    } else {
+        AddLine "Runtime window: unavailable"
+    }
+
+    if ($Target.PSIsContainer) {
+        if (-not $IsLikelyLauncherModsTarget) {
+            AddLine "Mods edited during active runtime: skipped (target path is not a launcher mods folder)."
+        } elseif (@($RuntimeEditedReports).Count -gt 0) {
+            AddLine "Mods edited during active runtime: $(@($RuntimeEditedReports).Count)"
+            foreach ($rr in @($RuntimeEditedReports | Sort-Object FileName)) {
+                $editText = if ($rr.PSObject.Properties.Name -contains "LastWriteTimeLocal") { [string]$rr.LastWriteTimeLocal } else { "unknown" }
+                AddLine "  - $(Format-XmaReportDisplayName -Report $rr) (edited: $editText)"
+            }
+        } elseif ($RuntimeWindowInfo -and $RuntimeWindowInfo.HasWindow) {
+            AddLine "Mods edited during active runtime: 0"
+        } else {
+            AddLine "Mods edited during active runtime: skipped (no runtime window)."
+        }
+    }
+
+    if (@($RuntimeSuspiciousFindings).Count -gt 0) {
+        AddSection "JVM Runtime Injection Findings"
+        foreach ($rf in $RuntimeSuspiciousFindings) {
+            AddLine "PID $($rf.ProcessId) ($($rf.Name))"
+            foreach ($detail in @($rf.FindingDetails)) {
+                AddLine "  - $($detail.Label)"
+                AddLine "      position: $($detail.Position)"
+                AddLine "      argument: $($detail.Argument)"
+                if (-not [string]::IsNullOrWhiteSpace([string]$detail.Notes)) {
+                    AddLine "      note: $($detail.Notes)"
+                }
+                foreach ($path in @($detail.ReferencedPaths | Select-Object -Unique)) {
+                    AddLine "      jar: $path"
+                }
+            }
+            AddLine ""
+        }
+        if ($RuntimeInjectionJarReport) {
+            AddLine "Runtime-injected jar scan results: added=$(@($RuntimeInjectionJarReport.AddedReports).Count), annotated=$(@($RuntimeInjectionJarReport.AnnotatedReports).Count)"
+        }
+    } elseif (-not $SkipRuntimeScan) {
+        AddSection "JVM Runtime Injection Findings"
+        AddLine "none"
+    }
+
+    if (@($RuntimeInformationalFindings).Count -gt 0) {
+        AddSection "JVM Runtime Notes (Likely Legit)"
+        foreach ($rf in $RuntimeInformationalFindings) {
+            AddLine "PID $($rf.ProcessId) ($($rf.Name))"
+            foreach ($detail in @($rf.InformationalDetails)) {
+                AddLine "  - $($detail.Label)"
+                AddLine "      position: $($detail.Position)"
+                AddLine "      argument: $($detail.Argument)"
+                if (-not [string]::IsNullOrWhiteSpace([string]$detail.Notes)) {
+                    AddLine "      note: $($detail.Notes)"
+                }
+                foreach ($path in @($detail.ReferencedPaths | Select-Object -Unique)) {
+                    AddLine "      jar: $path"
+                }
+            }
+            AddLine ""
+        }
+    }
+
+    if (-not $SkipMemoryScan) {
+        AddSection "Java Memory String Hits"
+        $allMemoryHits = @($MemoryResults | ForEach-Object { @($_.Hits) })
+        if ($allMemoryHits.Count -eq 0) {
+            AddLine "none"
+        } else {
+            foreach ($res in $MemoryResults) {
+                $proc = $JavaProcesses | Where-Object { $_.ProcessId -eq $res.ProcessId } | Select-Object -First 1
+                $procName = if ($proc) { "$($proc.Name) PID $($res.ProcessId)" } else { "PID $($res.ProcessId)" }
+                AddLine $procName
+                if ($res.Error) {
+                    AddLine "  - $($res.Error)"
+                    continue
+                }
+
+                $needleBuckets = @{}
+                foreach ($hit in @($res.Hits)) {
+                    if (-not $needleBuckets.ContainsKey($hit.Needle)) {
+                        $needleBuckets[$hit.Needle] = New-Object System.Collections.Generic.List[string]
+                    }
+                    if ($needleBuckets[$hit.Needle].Count -lt 3) {
+                        $needleBuckets[$hit.Needle].Add($hit.Sample)
+                    }
+                }
+
+                foreach ($needle in ($needleBuckets.Keys | Sort-Object)) {
+                    AddLine "  - hit: $needle"
+                    foreach ($sample in @($needleBuckets[$needle])) {
+                        AddLine "      sample: $sample"
+                    }
+                }
+                AddLine ""
+            }
+        }
+    }
+
+    if (@($HiddenReport).Count -gt 0) {
+        AddSection "Hidden/System Jar Report"
+        foreach ($h in $HiddenReport) {
+            AddLine "- $($h.FileName): before=$($h.Before), after=$($h.After)"
+        }
+    }
+
+    return $sb.ToString()
+}
+
+function Get-XmaDownloadsFolder {
+    $userProfile = [Environment]::GetFolderPath("UserProfile")
+    if ([string]::IsNullOrWhiteSpace($userProfile)) {
+        $userProfile = $HOME
+    }
+
+    return (Join-Path $userProfile "Downloads")
+}
+
+function Convert-XmaUserPath {
+    param([string]$Path)
+
+    $clean = ([string]$Path).Trim().Trim('"')
+    $clean = [Environment]::ExpandEnvironmentVariables($clean)
+    if ($clean -eq "~") {
+        return [string]$HOME
+    }
+    if ($clean.StartsWith("~\")) {
+        return (Join-Path $HOME $clean.Substring(2))
+    }
+
+    return $clean
+}
+
+function Save-XmaReportText {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Text,
+        [Parameter(Mandatory)]
+        [string]$Destination
+    )
+
+    $destinationPath = Convert-XmaUserPath -Path $Destination
+    if ([string]::IsNullOrWhiteSpace($destinationPath)) {
+        throw "Destination path is empty."
+    }
+
+    $fileName = "xkzutos-mod-analyzer-report-{0}.txt" -f (Get-Date -Format "yyyyMMdd-HHmmss")
+    $extension = [System.IO.Path]::GetExtension($destinationPath)
+    if ($extension -ieq ".txt") {
+        $folder = Split-Path -Parent $destinationPath
+        if ([string]::IsNullOrWhiteSpace($folder)) {
+            $folder = (Get-Location).Path
+        }
+        $filePath = $destinationPath
+    } else {
+        $folder = $destinationPath
+        $filePath = Join-Path $folder $fileName
+    }
+
+    if (-not (Test-Path -LiteralPath $folder)) {
+        New-Item -ItemType Directory -Path $folder -Force | Out-Null
+    }
+
+    Set-Content -LiteralPath $filePath -Value $Text -Encoding UTF8 -Force
+    return $filePath
+}
+
+function Copy-XmaTextToClipboard {
+    param([string]$Text)
+
+    try {
+        Set-Clipboard -Value $Text -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Invoke-XmaTemporaryReportUpload {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ReportPath
+    )
+
+    Add-Type -AssemblyName System.Net.Http
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
+    $client = New-Object System.Net.Http.HttpClient
+    $client.Timeout = [TimeSpan]::FromSeconds(30)
+    $form = New-Object System.Net.Http.MultipartFormDataContent
+    $stream = [System.IO.File]::OpenRead($ReportPath)
+    $fileContent = New-Object System.Net.Http.StreamContent -ArgumentList $stream
+
+    try {
+        $form.Add($fileContent, "file", [System.IO.Path]::GetFileName($ReportPath))
+        $response = $client.PostAsync("https://0x0.st", $form).GetAwaiter().GetResult()
+        $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult().Trim()
+        if (-not $response.IsSuccessStatusCode) {
+            throw "Upload failed: HTTP $([int]$response.StatusCode) $body"
+        }
+        if ($body -notmatch '^https?://') {
+            throw "Upload did not return a link: $body"
+        }
+
+        return $body
+    } finally {
+        $fileContent.Dispose()
+        $stream.Dispose()
+        $form.Dispose()
+        $client.Dispose()
+    }
+}
+
+function Show-XmaCompletionMenu {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ReportText
+    )
+
+    if ([Console]::IsInputRedirected) {
+        Write-Host ""
+        Write-Host "Report options skipped because input is redirected." -ForegroundColor DarkGray
+        return
+    }
+
+    while ($true) {
+        Write-XmaSection -Title "Report Options" -Color Cyan
+        Write-Host "1) Save report as TXT" -ForegroundColor White
+        Write-Host "2) Upload temporary report link and copy link" -ForegroundColor White
+        Write-Host "3) Close" -ForegroundColor White
+        $choice = Read-Host "Choose 1, 2, or 3"
+
+        if ([string]::IsNullOrWhiteSpace($choice)) {
+            Write-Host "Enter 1, 2, or 3." -ForegroundColor Yellow
+            Write-Host ""
+            continue
+        }
+
+        switch ($choice.Trim()) {
+            "1" {
+                while ($true) {
+                    Write-Host ""
+                    Write-Host "Save TXT report" -ForegroundColor Cyan
+                    Write-Host "1) Downloads folder (default)" -ForegroundColor White
+                    Write-Host "2) Custom folder or .txt path" -ForegroundColor White
+                    $saveChoice = Read-Host "Choose 1 or 2 (Enter = 1)"
+                    if ([string]::IsNullOrWhiteSpace($saveChoice)) {
+                        $saveChoice = "1"
+                    }
+
+                    if ($saveChoice.Trim() -eq "1") {
+                        try {
+                            $path = Save-XmaReportText -Text $ReportText -Destination (Get-XmaDownloadsFolder)
+                            Write-Host "Saved: $path" -ForegroundColor Green
+                        } catch {
+                            Write-Host "Save failed: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                        Write-Host ""
+                        break
+                    }
+
+                    if ($saveChoice.Trim() -eq "2") {
+                        $customPath = Read-Host "Enter folder path or .txt file path"
+                        if ([string]::IsNullOrWhiteSpace($customPath)) {
+                            Write-Host "Path required." -ForegroundColor Yellow
+                            continue
+                        }
+
+                        try {
+                            $path = Save-XmaReportText -Text $ReportText -Destination $customPath
+                            Write-Host "Saved: $path" -ForegroundColor Green
+                        } catch {
+                            Write-Host "Save failed: $($_.Exception.Message)" -ForegroundColor Red
+                        }
+                        Write-Host ""
+                        break
+                    }
+
+                    Write-Host "Enter 1 or 2." -ForegroundColor Yellow
+                }
+            }
+            "2" {
+                try {
+                    $tempPath = Save-XmaReportText -Text $ReportText -Destination ([System.IO.Path]::GetTempPath())
+                    Write-Host "Uploading temporary report..." -ForegroundColor Cyan
+                    $link = Invoke-XmaTemporaryReportUpload -ReportPath $tempPath
+                    $copied = Copy-XmaTextToClipboard -Text $link
+                    if ($copied) {
+                        Write-Host "Temporary link copied: $link" -ForegroundColor Green
+                    } else {
+                        Write-Host "Temporary link: $link" -ForegroundColor Green
+                        Write-Host "Clipboard copy failed." -ForegroundColor Yellow
+                    }
+                } catch {
+                    Write-Host "Upload failed: $($_.Exception.Message)" -ForegroundColor Red
+                }
+                Write-Host ""
+            }
+            "3" {
+                return
+            }
+            default {
+                Write-Host "Enter 1, 2, or 3." -ForegroundColor Yellow
+                Write-Host ""
+            }
+        }
+    }
 }
 
 Disable-XmaConsoleQuickEdit
@@ -2432,7 +2925,7 @@ $runtimeWindowInfo = Get-XmaRuntimeWindowInfo -RuntimeTargets $runtimeTargets -W
 if ($target.PSIsContainer) {
     $isLikelyLauncherModsTarget = Test-XmaLikelyLauncherModsPath -Path $target.FullName
 } else {
-    $parentPath = Split-Path -LiteralPath $target.FullName -Parent
+    $parentPath = [System.IO.Path]::GetDirectoryName($target.FullName)
     $isLikelyLauncherModsTarget = Test-XmaLikelyLauncherModsPath -Path $parentPath
 }
 
@@ -2508,8 +3001,7 @@ if (-not $Quiet) {
             Write-Host "Mods edited during active runtime: $($runtimeEditedReports.Count)" -ForegroundColor Red
             foreach ($rr in @($runtimeEditedReports | Sort-Object FileName)) {
                 $editText = if ($rr.PSObject.Properties.Name -contains "LastWriteTimeLocal") { [string]$rr.LastWriteTimeLocal } else { "unknown" }
-                $displayName = Format-XmaReportDisplayName -Report $rr
-                Write-Host ("  - {0} (edited: {1})" -f $displayName, $editText) -ForegroundColor DarkYellow
+                Write-XmaReportDisplayLine -Prefix "  - " -Report $rr -Color DarkYellow -Suffix " (edited: $editText)"
             }
         } elseif ($runtimeWindowInfo -and $runtimeWindowInfo.HasWindow) {
             Write-Host "Mods edited during active runtime: 0" -ForegroundColor Green
@@ -2547,8 +3039,7 @@ if ($signatureHitReports.Count -gt 0) {
     Write-XmaSection -Title "Matched Signature Strings" -Color DarkMagenta
     foreach ($r in @($signatureHitReports | Sort-Object FileName)) {
         Write-Host ""
-        $displayName = Format-XmaReportDisplayName -Report $r
-        Write-Host "$displayName [$($r.Status)]" -ForegroundColor White
+        Write-XmaReportDisplayLine -Report $r -Color White -Suffix " [$($r.Status)]"
         $displayHits = @($r.SignatureHits | Select-Object -First 25)
         foreach ($sig in $displayHits) {
             Write-Host "  - $sig" -ForegroundColor Magenta
@@ -2567,8 +3058,7 @@ if ($flagged.Count -gt 0) {
     Write-XmaSection -Title "Flagged Mods (Reasons)" -Color Magenta
     foreach ($r in $flagged) {
         Write-Host ""
-        $displayName = Format-XmaReportDisplayName -Report $r
-        Write-Host "$displayName [$($r.Status)]" -ForegroundColor White
+        Write-XmaReportDisplayLine -Report $r -Color White -Suffix " [$($r.Status)]"
         if ($r.Verification) {
             Write-Host "  Verified source: $($r.Verification.Source) / $($r.Verification.Name)" -ForegroundColor DarkGray
         } else {
@@ -2684,4 +3174,27 @@ if (@($hiddenReport).Count -gt 0) {
         Write-Host "- $($h.FileName): before=$($h.Before), after=$($h.After)" -ForegroundColor DarkYellow
     }
     Write-Host ""
+}
+
+if (-not $Quiet) {
+    $reportText = New-XmaReportText `
+        -Target $target `
+        -JarFiles $jarFiles `
+        -ReportArray $reportArray `
+        -Summary $summary `
+        -TotalMods $totalMods `
+        -JavaProcesses $javaProcesses `
+        -RuntimeTargets $runtimeTargets `
+        -RuntimeWindowInfo $runtimeWindowInfo `
+        -RuntimeEditedReports $runtimeEditedReports `
+        -IsLikelyLauncherModsTarget $isLikelyLauncherModsTarget `
+        -RuntimeSuspiciousFindings $runtimeSuspiciousFindings `
+        -RuntimeInformationalFindings $runtimeInformationalFindings `
+        -RuntimeInjectionJarReport $runtimeInjectionJarReport `
+        -MemoryResults $memoryResults `
+        -HiddenReport $hiddenReport `
+        -SkipRuntimeScan ([bool]$SkipRuntimeScan) `
+        -SkipMemoryScan ([bool]$SkipMemoryScan)
+
+    Show-XmaCompletionMenu -ReportText $reportText
 }
